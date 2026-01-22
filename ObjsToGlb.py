@@ -4,9 +4,9 @@ import glob
 import re
 
 # --- KONFIGURACJA ---
-INPUT_FOLDER = r"D:\pbl\organoid\output-OBJ-models\Tile_1_processed_binned-2b"
+INPUT_FOLDER = r"D:\pbl\organoid\output-OBJ-coat\Tile_1_processed_binned-2b"
 # Zapiszemy jako .glb (lepiej dla Reacta) lub .fbx
-OUTPUT_FILE = r"D:\pbl\organoid\output-OBJ-models\Tile_1_processed_binned-2b\anim\animacja.glb"
+OUTPUT_FILE = r"D:\pbl\organoid\output-OBJ-coat\Tile_1_processed_binned-2b\anim\animacja.glb"
 FILE_EXT = "*.obj"
 
 # Jak bardzo 'gęsta' ma być siatka bazowa?
