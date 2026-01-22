@@ -1,8 +1,8 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, Html, useProgress } from '@react-three/drei';
-import ModelReview from './ModelReview';
-import { PlayArrow } from '@mui/icons-material';
+import { DualSyncedModels } from './ModelReview';
+import { Pause, PlayArrow } from '@mui/icons-material';
 
 function Loader() {
   const { progress } = useProgress();
@@ -10,28 +10,60 @@ function Loader() {
 }
 
 const ModelInterface = () => {
-  // Stan dla suwaka (od 0.0 do 1.0)
   const [sliderValue, setSliderValue] = useState(0.0);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    let intervalId: number;
+
+    if (isPlaying) {
+      intervalId = setInterval(() => {
+        setSliderValue((prev) => {
+          if (prev >= 1.0) {
+            setIsPlaying(false);
+            return 1.0;
+          }
+          return Math.min(prev + 0.001, 1.0); 
+        });
+      }, 16);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isPlaying]);
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSliderValue(parseFloat(e.target.value));
   };
 
   return (
-    <div style={{ background: '#eee', display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ 
+      background: '#eee', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100%', 
+      flexGrow: 1,
+      boxSizing: 'border-box'
+    }}>
       
-      {/* --- Kontener 3D --- */}
-      <div style={{ flexGrow: 1 }}>
-        <Canvas camera={{ position: [0, 2, 5], fov: 50 }}>
+      <div style={{ flexGrow: 1, position: 'relative', minHeight: 0 }}>
+        <Canvas camera={{ position: [0, 2, 5], fov: 50 }}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+        >
           <ambientLight intensity={0.5} />
           <directionalLight position={[10, 10, 5]} intensity={1.5} castShadow />
           <Environment preset="city" />
 
           <Suspense fallback={<Loader />}>
-            <ModelReview 
+            {/* <ModelReview 
               url="/models/animacja1.glb" 
               animationProgress={sliderValue}
               opacity={0.5}
+            /> */}
+            <DualSyncedModels
+              innerUrl='/models/nuclei2.glb'
+              outerUrl='/models/full.glb'
+              animationProgress={sliderValue}
             />
           </Suspense>
           <OrbitControls makeDefault />
@@ -61,20 +93,10 @@ const ModelInterface = () => {
             boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
           }}
           onClick={() => {
-            setSliderValue(0.0);
-            let playAnim = setInterval(() => {
-              setSliderValue(prev => {
-                if (prev >= 1.0) {
-                  clearInterval(playAnim);
-                  return 1.0;
-                }
-                return Math.min(prev + 0.0005, 1.0);
-              });
-            }, 10);
-            return () => clearInterval(playAnim);
+            setIsPlaying(!isPlaying);
           }}
         >
-          <PlayArrow style={{ color: 'black' }} />
+          {isPlaying ? <Pause style={{ color: 'black' }} /> : <PlayArrow style={{ color: 'black' }} />}
         </button>
         <input
           id="timeline-slider"
