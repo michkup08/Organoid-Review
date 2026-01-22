@@ -1,10 +1,13 @@
-import ModelInterface from "./ModelInterface";
+import { X } from "@mui/icons-material";
+import ModelInterface from "../components/ModelInterface";
+import { useNavigate } from "react-router-dom";
 
 const SingleSetInterface = () => {
-
+  const navigate = useNavigate();
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#e8e8e8', display: 'flex', flexDirection: 'column' }}>
+      
       <div style={{ 
         padding: '20px', 
         background: '#eee', 
@@ -12,7 +15,7 @@ const SingleSetInterface = () => {
         flexGrow: 1,
         borderRadius: '20px',
         margin: '10px',
-        minHeight: '800px',
+        minHeight: '600px',
         display: 'flex', 
         flexDirection: 'column'
       }}>
@@ -82,9 +85,19 @@ const SingleSetInterface = () => {
               />
           </div>
       </div>
-        
       </div>
-      
+      <div style={{ 
+          padding: '25px', 
+          background: 'red',
+          display: 'absolute',
+          top: '20px',
+          left: '20px',
+          zIndex: 1000,
+        }}
+        onClick={() => { () => { navigate('/')}}}
+        >
+        <X style={{ color: 'white', cursor: 'pointer'}}/>
+      </div>
     </div>
   );
 }

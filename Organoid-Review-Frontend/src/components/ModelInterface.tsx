@@ -45,7 +45,6 @@ const ModelInterface = () => {
       flexGrow: 1,
       boxSizing: 'border-box'
     }}>
-      
       <div style={{ flexGrow: 1, position: 'relative', minHeight: 0 }}>
         <Canvas camera={{ position: [0, 2, 5], fov: 50 }}
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
@@ -53,23 +52,16 @@ const ModelInterface = () => {
           <ambientLight intensity={0.5} />
           <directionalLight position={[10, 10, 5]} intensity={1.5} castShadow />
           <Environment preset="city" />
-
           <Suspense fallback={<Loader />}>
-            {/* <ModelReview 
-              url="/models/animacja1.glb" 
-              animationProgress={sliderValue}
-              opacity={0.5}
-            /> */}
             <DualSyncedModels
               innerUrl='/models/nuclei2.glb'
-              outerUrl='/models/full.glb'
+              outerUrl='/models/coat_anim.glb'
               animationProgress={sliderValue}
             />
           </Suspense>
           <OrbitControls makeDefault />
         </Canvas>
       </div>
-
       <div style={{ 
         padding: '20px', 
         background: '#eee', 
