@@ -1,4 +1,4 @@
-import { X } from "@mui/icons-material";
+import { ArrowLeft, X } from "@mui/icons-material";
 import ModelInterface from "../components/ModelInterface";
 import { useNavigate } from "react-router-dom";
 
@@ -87,16 +87,25 @@ const SingleSetInterface = () => {
       </div>
       </div>
       <div style={{ 
-          padding: '25px', 
-          background: 'red',
-          display: 'absolute',
+          padding: '5px', 
+          background: '#eee',
+          boxShadow: '0 0px 5px rgba(0,0,0,0.5)',
+          opacity: 0.8,
+          position: 'fixed',
           top: '20px',
           left: '20px',
           zIndex: 1000,
+          borderRadius: '50%',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '50px',
+          height: '50px'
         }}
-        onClick={() => { () => { navigate('/')}}}
+        onClick={() => { navigate('/')}}
         >
-        <X style={{ color: 'white', cursor: 'pointer'}}/>
+        <ArrowLeft style={{ color: 'black', cursor: 'pointer', width: '40', height: '40'}}/>
       </div>
     </div>
   );
