@@ -1,8 +1,13 @@
 import { useNavigate } from "react-router-dom";
+import { useOrganoids } from "../services/Organoid";
 
 const MainMenu = () => {
   const navigate = useNavigate();
-  const items = ['Zbiór danych A', 'Zbiór danych B', 'Zbiór danych C', 'Zbiór danych D'];
+  const { data: organoidsData, isLoading, error } = useOrganoids();
+
+  if (isLoading) return <div>Ładowanie organoidów...</div>;
+  
+  if (error) return <div>Błąd: {error.message}</div>;
 
   return (
     <div style={{ 
@@ -30,7 +35,7 @@ const MainMenu = () => {
             Dostępne zbiory danych:
         </label>
         
-        {items.map((label, index) => (
+        {organoidsData?.map((value, index) => (
           <div key={index} style={{ 
             background: '#fff', 
             padding: '15px 20px',
@@ -52,9 +57,9 @@ const MainMenu = () => {
             e.currentTarget.style.transform = 'translateX(0)';
             e.currentTarget.style.boxShadow = '0 2px 4px rgba(173, 42, 42, 0.05)';
           }}
-          onClick={() => navigate(`/dataset/${index + 1}`)}
+          onClick={() => navigate(`/dataset/${value.id}`)}
           >
-            <span>{label}</span>
+            <span>{value.name}</span>
             <span style={{color: '#999', fontSize: '0.9em'}}>➔</span>
           </div>
         ))}
