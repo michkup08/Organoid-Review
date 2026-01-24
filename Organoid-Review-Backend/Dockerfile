@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["python", "main.py"]
+CMD ["sh", "-c", "flask db upgrade && python app.py"]
