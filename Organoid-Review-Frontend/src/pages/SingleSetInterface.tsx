@@ -1,9 +1,10 @@
-import { ArrowLeft, X } from "@mui/icons-material";
+import { ArrowLeft} from "@mui/icons-material";
 import ModelInterface from "../components/ModelInterface";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 const SingleSetInterface = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#e8e8e8', display: 'flex', flexDirection: 'column' }}>
@@ -28,7 +29,7 @@ const SingleSetInterface = () => {
         >
           Reprezentacja modelu 3D:
         </label>
-        <ModelInterface />
+        <ModelInterface orgId = {+(id ?? 0)}/>
         
       </div>
       <div

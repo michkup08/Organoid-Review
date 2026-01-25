@@ -1,12 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import type { GLTF } from 'three-stdlib'; 
-import React from 'react';
+import type { GLTF } from 'three-stdlib';
 
 interface AnimatedModelProps {
   url: string;
-  animationProgress: number; // 0.0 do 1.0
+  animationProgress: number;
   opacity?: number;
   color?: string;
 }
@@ -17,17 +16,16 @@ export function SingleAnimatedModel({
   opacity = 1.0,
   color
 }: AnimatedModelProps) {
-  // 1. Ładujemy GLTF
+  // useGLTF automatycznie pobierze model z adresu URL (czy to http:// czy blob:)
   const { scene, animations } = useGLTF(url) as GLTF;
   
-  // 2. Klonujemy scenę, aby móc używać tego samego modelu dwa razy (inner/outer) bez konfliktów
-  // useGraph tworzy unikalną instancję materiałów i geometrii dla tego wywołania
-  const clone = React.useMemo(() => scene.clone(), [scene]);
+  // Klonowanie sceny
+  const clone = useMemo(() => scene.clone(), [scene]);
 
-  // 3. Hook do obsługi animacji (uniwersalny: Morph i Skeletal)
+  // Animacje
   const { actions, names } = useAnimations(animations, clone);
 
-  // 4. Ustawienie materiałów (Kolor/Przezroczystość)
+  // Ustawienie materiałów
   useEffect(() => {
     clone.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
@@ -36,40 +34,39 @@ export function SingleAnimatedModel({
         
         materials.forEach((mat) => {
           const standardMat = mat as THREE.MeshStandardMaterial;
-          standardMat.transparent = true; // Zawsze true, żeby opacity działało
+          standardMat.transparent = true;
           standardMat.opacity = opacity;
           if (color) standardMat.color = new THREE.Color(color);
-          standardMat.depthWrite = opacity >= 1.0; // Wyłącz depthWrite dla przezroczystych, żeby nie migały
+          standardMat.depthWrite = opacity >= 1.0;
         });
       }
     });
   }, [clone, opacity, color]);
 
-  // 5. Sterowanie Animacją Suwakiem (Scrubbing)
+  // Sterowanie Suwakiem
   useEffect(() => {
-    // Bierzemy pierwszą dostępną animację
     const actionName = names[0];
     const action = actions[actionName];
 
     if (action) {
-      // Przygotuj animację, ale jej nie puszczaj (paused)
       action.play();
-      action.paused = true; // Kluczowe dla suwaka!
-      
-      // Oblicz czas na podstawie progressu (0.0 - 1.0)
+      action.paused = true;
       const duration = action.getClip().duration;
-      action.time = duration * animationProgress;
-      
-      // Wymuś aktualizację mixera (czasami potrzebne przy pauzie)
-      // action.getMixer().update(0); 
+      // Zabezpieczenie na wypadek NaN
+      action.time = duration * (Number.isFinite(animationProgress) ? animationProgress : 0);
     }
   }, [actions, names, animationProgress]);
 
   return <primitive object={clone} scale={1.5} position={[0, -1, 0]} />;
 }
 
-// Komponent DualSyncedModels pozostaje bez zmian (korzysta z powyższego)
-export function DualSyncedModels({ outerUrl, innerUrl, animationProgress }: any) {
+interface DualSyncedModelsProps {
+  outerUrl: string;
+  innerUrl: string;
+  animationProgress: number;
+}
+
+export function DualSyncedModels({ outerUrl, innerUrl, animationProgress }: DualSyncedModelsProps) {
   return (
     <group position={[0, 1, 0]} scale={1.5}>
       <SingleAnimatedModel 
@@ -88,4 +85,5 @@ export function DualSyncedModels({ outerUrl, innerUrl, animationProgress }: any)
   );
 }
 
-export default SingleAnimatedModel;
+// Preload jest trudny przy dynamicznych URLach (blob), więc można go pominąć 
+// lub używać tylko dla stałych zasobów.
