@@ -4,8 +4,10 @@ import pymysql.cursors
 from flask import Flask, send_from_directory, abort, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_cors import CORS
 
 app = Flask("Organoid Review")
+CORS(app)
 
 user = os.environ.get('DB_USER', 'root')
 password = os.environ.get('DB_PASSWORD', 'organoid123')
