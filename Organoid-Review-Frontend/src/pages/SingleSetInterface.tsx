@@ -1,10 +1,12 @@
 import { ArrowLeft} from "@mui/icons-material";
 import ModelInterface from "../components/ModelInterface";
 import { useNavigate, useParams } from "react-router-dom";
+import { useOrganoid } from "../services/Organoid";
 
 const SingleSetInterface = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { data: organoidData, isLoading, error } = useOrganoid(+(id ?? 0));
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#e8e8e8', display: 'flex', flexDirection: 'column' }}>
@@ -25,11 +27,22 @@ const SingleSetInterface = () => {
             fontSize: '18px',
             fontWeight: 'bold',
             marginBottom: '10px',
+            marginLeft: '80px'
           }}
         >
           Reprezentacja modelu 3D:
         </label>
-        <ModelInterface orgId = {+(id ?? 0)}/>
+        {isLoading ? (
+          <div style={{marginLeft: '80px'}}>Ładowanie danych organoidu...</div>
+        ) : error ? (
+          <div style={{marginLeft: '80px'}}>Błąd: {error?.message}</div>
+        ) : !organoidData?.isInitialized ? (
+          <div style={{marginLeft: '80px'}}>Organoid nie został jeszcze zainicjalizowany.</div>
+        ) : !organoidData?.isProcessedGlb ? (
+          <div style={{marginLeft: '80px'}}>Model organoidu nie został jeszcze utworzony</div>
+        ) : (
+          <ModelInterface orgId={+(id ?? 0)} />
+        )}
         
       </div>
       <div
