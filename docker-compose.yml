@@ -3,6 +3,7 @@ version: '3.8'
 services:
   backend:
     build: ./Organoid-Review-Backend
+    mac_address: f2:6d:ac:ef:2d:1d
     ports:
       - "5000:5000"
     volumes:
@@ -12,6 +13,7 @@ services:
       - DB_USER=root
       - DB_PASSWORD=organoid123
       - DB_NAME=organoid-db
+
     depends_on:
       - db
 

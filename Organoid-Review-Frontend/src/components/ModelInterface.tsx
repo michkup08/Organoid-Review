@@ -52,7 +52,7 @@ const ModelInterface = ({ orgId }: { orgId?: number }) => {
             setIsPlaying(false);
             return 1.0;
           }
-          return Math.min(prev + 0.001, 1.0);
+          return Math.min(prev + 0.003, 1.0);
         });
       }, 16);
     }

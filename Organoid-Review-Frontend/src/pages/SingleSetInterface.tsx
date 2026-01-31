@@ -45,7 +45,8 @@ const SingleSetInterface = () => {
         )}
         
       </div>
-      <div
+      {/* {organoidData?.isInCurrentRdf &&  <div */}
+      {<div
         style={{ 
           padding: '20px', 
           background: '#eee', 
@@ -99,7 +100,7 @@ const SingleSetInterface = () => {
               />
           </div>
       </div>
-      </div>
+      </div>}
       <div style={{ 
           padding: '5px', 
           background: '#eee',
