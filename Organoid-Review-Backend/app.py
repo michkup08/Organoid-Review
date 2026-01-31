@@ -12,7 +12,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
+from formermatlabfunc import process_pipeline
 from werkzeug.utils import secure_filename
+
+INTERNAL_DATA_FOLDER = os.environ.get('INPUT_FOLDER_INTERNAL', '/app/data')
 
 app = Flask("Organoid Review")
 CORS(app)
@@ -232,6 +235,32 @@ def get_glb_file(organoid_id, layer_type):
 def handle_connect():
     emit('server_state', SERVER_STATE)
 
+
+@app.route('/process', methods=['POST'])
+def process_file():
+    data = request.json
+    if not data:
+        return jsonify({"error": "Brak danych JSON w żądaniu"}), 400
+
+    file_path = data.get('file_path')
+
+    if not file_path:
+        return jsonify({"error": "Brakuje parametru 'file_path'"}), 400
+
+    if not INTERNAL_DATA_FOLDER:
+        return jsonify({"error": "Błąd konfiguracji serwera: INTERNAL_DATA_FOLDER is None"}), 500
+
+    full_path = os.path.join(INTERNAL_DATA_FOLDER, file_path)
+
+    if not os.path.exists(full_path):
+        print(f"DEBUG: Szukałem pliku tutaj: {full_path}")
+        return jsonify({"error": f"File not found: {file_path}"}), 404
+
+    thread = threading.Thread(target=process_pipeline, args=(full_path, INTERNAL_DATA_FOLDER))
+    thread.start()
+
+    return jsonify({"message": "Processing started", "file": file_path})
+    
 if __name__ == '__main__':
     app.debug = True
     app.run(host='0.0.0.0', port=5000)

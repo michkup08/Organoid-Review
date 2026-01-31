@@ -8,6 +8,7 @@ services:
       - "5000:5000"
     volumes:
       - ./Organoid-Review-Backend:/app
+      - ${DATA_PATH_HOST}:/app/data
     environment:
       - DB_HOST=db
       - DB_USER=root
