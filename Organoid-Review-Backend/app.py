@@ -15,7 +15,7 @@ from flask_socketio import SocketIO, emit
 from formermatlabfunc import process_pipeline
 from werkzeug.utils import secure_filename
 
-INTERNAL_DATA_FOLDER = os.environ.get('INPUT_FOLDER_INTERNAL', '/app/data')
+# INTERNAL_DATA_FOLDER = os.environ.get('INPUT_FOLDER_INTERNAL', '/app/data')
 
 app = Flask("Organoid Review")
 CORS(app)
@@ -30,11 +30,18 @@ dbname = os.environ.get('DB_NAME', 'organoid-review')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{user}:{password}@{host}/{dbname}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-UPLOAD_FOLDER = os.path.join(app.root_path, 'tiffs')
+TIFS_FOLDER = os.path.join(app.root_path, 'tiffs')
+GLBS_FOLDER = os.path.join(app.root_path, 'glbs')
+OBJS_FOLDER = os.path.join(app.root_path, 'objs')
 MATLAB_FOLDER = os.path.join(app.root_path, 'matlab')
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['UPLOAD_FOLDER'] = TIFS_FOLDER
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbCoat.py')
+BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbNuclei.py')
+BLENDER_EXEC = "/opt/blender/blender"
+
+os.makedirs(TIFS_FOLDER, exist_ok=True)
+os.makedirs(OBJS_FOLDER, exist_ok=True)
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
@@ -91,6 +98,94 @@ def broadcast_log(message, level="INFO", organoid_id=None):
         print(f"Błąd zapisu logu do DB: {e}")
         db.session.rollback()
 
+def run_blender_conversion(input_folder_coat, output_file_coat, input_folder_nuclei, output_file_nuclei):
+    """
+    Uruchamia Blendera w trybie headless (tło) i wykonuje skrypt.
+    """
+    print(f"Rozpoczynam konwersję Blenderem: {input_folder_coat} -> {output_file_coat}")
+    
+    # Komenda: blender -b -P skrypt.py -- arg1 arg2
+    cmd_coat = [
+        BLENDER_EXEC,
+        "--background",  # Tryb bez interfejsu
+        "--python", BLENDER_COAT_SCRIPT_PATH,
+        "--",            # Separator argumentów dla skryptu Pythona
+        input_folder_coat,
+        output_file_coat
+    ]
+
+    cmd_nuclei = [
+        BLENDER_EXEC,
+        "--background",  # Tryb bez interfejsu
+        "--python", BLENDER_NUCLEI_SCRIPT_PATH,
+        "--",            # Separator argumentów dla skryptu Pythona
+        input_folder_nuclei,
+        output_file_nuclei
+    ]
+    
+    try:
+        # capture_output=True pozwala zobaczyć logi Blendera w konsoli Dockera
+        result = subprocess.run(cmd_coat, check=True, capture_output=True, text=True)
+        print("Blender Output:\n", result.stdout)
+        result = subprocess.run(cmd_nuclei, check=True, capture_output=True, text=True)
+        print("Blender Output:\n", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"BŁĄD BLENDERA (Exit Code {e.returncode}):\n", e.stderr)
+        # Tutaj można dodać logikę aktualizacji statusu w bazie danych na "ERROR"
+
+def pipeline_wrapper(filename):
+    """
+    Funkcja wykonująca sekwencyjnie przetwarzanie obrazu, a potem Blendera.
+    """
+    try:
+        # 1. Uruchomienie Twojego oryginalnego pipeline'u
+        # Zakładam, że process_pipeline tworzy konkretny podfolder z OBJami
+        # lub wrzuca je bezpośrednio do objs_folder_base.
+        print("Krok 1: Przetwarzanie obrazu...")
+        tiffs_path = os.path.join(TIFS_FOLDER, filename + ".tif")
+        process_pipeline(tiffs_path, OBJS_FOLDER)
+        
+        # 2. Ustalenie gdzie dokładnie process_pipeline zapisał OBJ.
+        # Jeśli process_pipeline tworzy podfolder na podstawie nazwy pliku, trzeba go tu ustalić.
+        # Załóżmy dla uproszczenia, że OBJe lądują w objs_folder_base (lub zmodyfikuj to).
+        # Przykład dynamicznej ścieżki (jeśli pipeline tworzy folder z nazwą pliku):
+        # filename_no_ext = os.path.splitext(os.path.basename(tif_path))[0]
+        # actual_obj_folder = os.path.join(objs_folder_base, filename_no_ext)
+        
+        # W tym przykładzie zakładam, że przekazujemy folder bezpośredni:
+        coat_obj_folder = os.path.join(OBJS_FOLDER, "output-OBJ-coat", filename)
+        nuclei_obj_folder =  os.path.join(OBJS_FOLDER, "output-OBJ-final", filename)
+
+        glb_output_path_coat = os.path.join(GLBS_FOLDER, "outer", filename + ".glb")
+        glb_output_path_nuclei = os.path.join(GLBS_FOLDER, "inner", filename + ".glb")
+
+        os.makedirs(os.path.join(GLBS_FOLDER, "outer"), exist_ok=True)
+        os.makedirs(os.path.join(GLBS_FOLDER, "inner"), exist_ok=True)
+
+        print("-" * 30)
+        print(f"DEBUG ŚCIEŻEK DLA BLENDERA:")
+        print(f"INPUT Coat:   {coat_obj_folder}")
+        print(f"INPUT Nuclei: {nuclei_obj_folder}")
+        print(f"OUTPUT Coat:  {glb_output_path_coat}")
+        print(f"OUTPUT Nuclei: {glb_output_path_nuclei}")
+        print("-" * 30)
+
+        # Sprawdzenie czy foldery wejściowe faktycznie istnieją przed uruchomieniem Blendera
+        if not os.path.exists(coat_obj_folder):
+            print(f"BŁĄD: Nie znaleziono folderu z OBJ otoczki: {coat_obj_folder}")
+            # Tu można rzucić wyjątek lub return, jeśli to krytyczne
+        
+        if not os.path.exists(nuclei_obj_folder):
+             print(f"BŁĄD: Nie znaleziono folderu z OBJ jąder: {nuclei_obj_folder}")
+
+        # Krok 2: Uruchomienie Blendera
+        print("Krok 2: Uruchamianie Blendera...")
+        run_blender_conversion(coat_obj_folder, glb_output_path_coat, nuclei_obj_folder, glb_output_path_nuclei)
+        
+        print("Cały proces zakończony sukcesem.")
+        
+    except Exception as e:
+        print(f"Błąd w pipeline: {e}")
 # def run_matlab_task(organoid_id, filename_base):
 #     global SERVER_STATE
     
@@ -231,36 +326,37 @@ def get_glb_file(organoid_id, layer_type):
     except FileNotFoundError:
         return abort(404, description="Synchronization error: file not found on server")
 
+
+@app.route('/organoid/process/<int:organoid_id>/', methods=['POST'])
+def process_file(organoid_id):
+    organoid = Organoid.query.filter_by(id=organoid_id).all()[0]
+
+    if not organoid:
+            return jsonify({"error": "Organoid not found"}), 404
+
+    full_path = os.path.join(TIFS_FOLDER, organoid.filename + ".tif")
+
+    organoid_objs_folder = os.path.join(OBJS_FOLDER, organoid.filename)
+    if not os.path.exists(organoid_objs_folder):
+        os.makedirs(organoid_objs_folder, exist_ok=True)
+
+    if not os.path.exists(full_path):
+        print(f"DEBUG: Szukałem pliku tutaj: {full_path}")
+        return jsonify({"error": f"File not found"}), 404
+
+    # thread = threading.Thread(target=process_pipeline, args=(full_path, OBJS_FOLDER))
+    thread = threading.Thread(
+        target=pipeline_wrapper, 
+        args=(organoid.filename,)
+    )
+    thread.start()
+
+    return jsonify({"message": "Processing started", "file": organoid.filename})
+    
 @socketio.on('connect')
 def handle_connect():
     emit('server_state', SERVER_STATE)
 
-
-@app.route('/process', methods=['POST'])
-def process_file():
-    data = request.json
-    if not data:
-        return jsonify({"error": "Brak danych JSON w żądaniu"}), 400
-
-    file_path = data.get('file_path')
-
-    if not file_path:
-        return jsonify({"error": "Brakuje parametru 'file_path'"}), 400
-
-    if not INTERNAL_DATA_FOLDER:
-        return jsonify({"error": "Błąd konfiguracji serwera: INTERNAL_DATA_FOLDER is None"}), 500
-
-    full_path = os.path.join(INTERNAL_DATA_FOLDER, file_path)
-
-    if not os.path.exists(full_path):
-        print(f"DEBUG: Szukałem pliku tutaj: {full_path}")
-        return jsonify({"error": f"File not found: {file_path}"}), 404
-
-    thread = threading.Thread(target=process_pipeline, args=(full_path, INTERNAL_DATA_FOLDER))
-    thread.start()
-
-    return jsonify({"message": "Processing started", "file": file_path})
-    
 if __name__ == '__main__':
     app.debug = True
     app.run(host='0.0.0.0', port=5000)

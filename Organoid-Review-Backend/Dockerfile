@@ -22,6 +22,10 @@ RUN apt-get update && apt-get install -y \
     libxrender1 \
     libxxf86vm1 \
     libxfixes3 \
+    libxkbcommon-x11-0 \
+    libxkbcommon0 \
+    libsm6 \
+    libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Tworzymy środowisko wirtualne (VENV)

@@ -2,10 +2,23 @@ import bpy
 import os
 import glob
 import re
+import sys  # Dodano do obsługi argumentów
 
-# --- KONFIGURACJA DLA OTOCZKI (COAT) ---
-INPUT_FOLDER = r"F:\pbl\output-OBJ-coat\Tile_1_processed_binned-2b"
-OUTPUT_FILE = r"F:\pbl\output-OBJ-coat\Tile_1_processed_binned-2b\anim\coat_anim.glb"
+# --- POBIERANIE ARGUMENTÓW ---
+# Argumenty przekazywane do Blendera po "--"
+argv = sys.argv
+if "--" in argv:
+    args = argv[argv.index("--") + 1:]
+else:
+    args = []
+
+if len(args) < 2:
+    print("Błąd: Wymagane 2 argumenty: <folder_input> <plik_output>")
+    # Wychodzimy z błędem, aby Flask wiedział, że coś poszło nie tak
+    sys.exit(1)
+
+INPUT_FOLDER = args[0]
+OUTPUT_FILE = args[1]
 FILE_EXT = "*.obj"
 FPS = 10
 
