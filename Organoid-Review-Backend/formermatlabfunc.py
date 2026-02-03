@@ -1,3 +1,4 @@
+import modelrdlinear
 import os
 import re
 import numpy as np
@@ -23,6 +24,90 @@ def parse_imagej_metadata(tif):
         print(f"Warning: Could not parse ImageJ metadata: {e}")
     return metadata
 
+
+def center_volume(volume):
+    """Oblicza przesunięcie środka masy do środka ramki."""
+    mass_center = ndimage.center_of_mass(volume)
+    if np.any(np.isnan(mass_center)):
+        return (0, 0, 0)
+    geo_center = np.array(volume.shape) / 2.0
+    return geo_center - mass_center
+
+
+def run_processing(input_file_path, output_base_folder):
+    filename = os.path.basename(input_file_path)
+    exp_name = os.path.splitext(filename)[0]
+
+    # Folder na wycentrowane dane numeryczne (Input dla modeli i meshera)
+    output_npy = os.path.join(output_base_folder, 'processed_data', exp_name)
+    os.makedirs(output_npy, exist_ok=True)
+
+    print(f"[PROCESSOR] Processing: {filename}")
+
+    CH_SEG = 0  # Coat
+    CH_ADD = 1  # Nuclei
+
+    with tifffile.TiffFile(input_file_path) as tif:
+        meta = parse_imagej_metadata(tif)
+        volume_data = tif.asarray()
+
+    dims = volume_data.shape
+    num_t = meta['frames']
+    num_z = meta['slices']
+    num_ch = meta['channels']
+    dim_y = dims[-2]
+    dim_x = dims[-1]
+
+    flat_data = volume_data.reshape(-1, dim_y, dim_x)
+
+    begin_t = 1
+    end_t = num_t - 1 if (num_t - 1) > 1 else num_t
+
+    processed_frames = []
+
+    for t in range(begin_t, end_t):
+        frame_idx = t + 1
+
+        # 1. Ekstrakcja
+        vol_ch1 = np.zeros((num_z, dim_y, dim_x), dtype=np.float32)
+        vol_ch2 = np.zeros((num_z, dim_y, dim_x), dtype=np.float32)
+
+        for z in range(num_z):
+            idx1 = t * num_z * num_ch + z * num_ch + CH_SEG
+            idx2 = t * num_z * num_ch + z * num_ch + CH_ADD
+            vol_ch1[z, :, :] = flat_data[idx1]
+            if num_ch > 1:
+                vol_ch2[z, :, :] = flat_data[idx2]
+
+        if np.max(vol_ch1) == 0 and np.max(vol_ch2) == 0:
+            continue
+
+        # 2. Centrowanie (na podstawie sumy)
+        vol_sum = vol_ch1 + vol_ch2
+        shift_vector = center_volume(vol_sum)
+
+        # Aplikujemy TO SAMO przesunięcie do obu kanałów
+        vol_coat_centered = ndimage.shift(vol_sum, shift_vector, order=1, mode='constant', cval=0)
+        vol_nuclei_centered = ndimage.shift(vol_ch2, shift_vector, order=1, mode='constant', cval=0)
+
+        # Konwersja do uint8 (dla oszczędności miejsca i zgodności z modelami)
+        coat_uint8 = np.clip(vol_coat_centered, 0, 255).astype(np.uint8)
+        nuclei_uint8 = np.clip(vol_nuclei_centered, 0, 255).astype(np.uint8)
+
+        # 3. Zapis NPY
+        coat_path = os.path.join(output_npy, f"T{frame_idx:03d}_Coat.npy")
+        nuclei_path = os.path.join(output_npy, f"T{frame_idx:03d}_Nuclei.npy")
+
+        np.save(coat_path, coat_uint8)
+        np.save(nuclei_path, nuclei_uint8)
+
+        processed_frames.append(frame_idx)
+
+        if frame_idx % 10 == 0:
+            print(f"  Processed Frame T={frame_idx}")
+
+    print(f"[PROCESSOR] Finished. Data saved to {output_npy}")
+    return output_npy, processed_frames
 
 def process_pipeline(input_file_path, output_folder):
     filename = os.path.basename(input_file_path)
@@ -216,6 +301,9 @@ def process_pipeline(input_file_path, output_folder):
                 print(f"    Saved {nuclei_in_frame} nuclei to {nuclei_filename}")
             else:
                 print("    No nuclei found.")
+
+            npy_folder, frames = run_processing(input_file_path, output_folder)
+            modelrdlinear.run_model(npy_folder, output_folder, exp_name)
 
         except Exception as e:
             print(f"    Error processing nuclei seg: {e}")
