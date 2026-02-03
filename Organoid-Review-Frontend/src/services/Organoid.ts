@@ -54,6 +54,23 @@ const uploadOrganoid = async ({ name, file }: OrganoidUploadPayload): Promise<an
   return response.json();
 };
 
+const processOrganoid = async ({ organoidId }: {organoidId: number}): Promise<any> => {
+  const formData = new FormData();
+  formData.append('organoidId', organoidId.toString());
+
+  const response = await fetch(`${API_URL}organoid/process/`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Wystąpił błąd podczas dodawania organoidu');
+  }
+
+  return response.json();
+};
+
 export const useOrganoid = (id: number) => {
   return useQuery({
     queryKey: ['organoidModel', id], 
@@ -74,6 +91,17 @@ export const useCreateOrganoid = () => {
 
   return useMutation({
     mutationFn: uploadOrganoid,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organoidModel'] });
+    },
+  });
+};
+
+export const useProcessOrganoid = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ( organoidId: number ) => processOrganoid({ organoidId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organoidModel'] });
     },

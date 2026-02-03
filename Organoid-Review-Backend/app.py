@@ -194,23 +194,20 @@ def pipeline_wrapper(filename, organoid_id):
         try:
             broadcast_log(f"Rozpoczynam zadanie dla: {filename}", "START", organoid_id)
             
-            # --- 1. PRZETWARZANIE OBRAZU ---
             broadcast_log("Krok 1: Przetwarzanie obrazu...", "INFO", organoid_id)
             tiffs_path = os.path.join(TIFS_FOLDER, filename + ".tif")
             
-            # Podmieniamy sys.stdout na nasz logger na czas wykonania funkcji
             original_stdout = sys.stdout
             sys.stdout = SocketLogger(organoid_id)
             
             try:
                 process_pipeline(tiffs_path, OBJS_FOLDER)
             except Exception as inner_e:
-                sys.stdout = original_stdout # Przywracamy stdout w razie błędu
+                sys.stdout = original_stdout 
                 raise inner_e
             finally:
-                sys.stdout = original_stdout # Przywracamy stdout zawsze
+                sys.stdout = original_stdout
             
-            # --- 2. USTALANIE ŚCIEŻEK ---
             coat_obj_folder = os.path.join(OBJS_FOLDER, "output-OBJ-coat", filename)
             nuclei_obj_folder = os.path.join(OBJS_FOLDER, "output-OBJ-final", filename)
 
@@ -224,7 +221,6 @@ def pipeline_wrapper(filename, organoid_id):
                 broadcast_log(f"Nie znaleziono folderu otoczki: {coat_obj_folder}", "ERROR", organoid_id)
                 return
             
-            # --- 3. URUCHOMIENIE BLENDERA ---
             broadcast_log("Przechodzę do konwersji 3D...", "INFO", organoid_id)
             
             run_blender_conversion(
@@ -235,19 +231,20 @@ def pipeline_wrapper(filename, organoid_id):
                 organoid_id
             )
             
-            # --- 4. FINALIZACJA ---
             broadcast_log("Cały proces zakończony sukcesem.", "DONE", organoid_id)
-            
+            SERVER_STATE['status'] = 'waiting'
+            SERVER_STATE['current_task'] = None
             organoid = Organoid.query.get(organoid_id)
             if organoid:
+                organoid.is_initialized = True
                 organoid.is_processed_glb = True
                 db.session.commit()
+                
                 socketio.emit('organoid_update', {'id': organoid.id, 'isProcessedGlb': True})
 
         except Exception as e:
             broadcast_log(f"Błąd w pipeline: {str(e)}", "ERROR", organoid_id)
             import traceback
-            # Piszemy traceback na __stdout__, żeby nie zapętlić
             sys.__stdout__.write(traceback.format_exc())
 
 @app.route('/')
@@ -268,13 +265,15 @@ def get_specific_logs(organoid_id):
 def get_server_state():
     return jsonify(SERVER_STATE)
 
-@app.route('/process/<int:organoid_id>', methods=['POST'])
+@app.route('/process/<int:organoid_id>/', methods=['POST'])
 def trigger_processing(organoid_id):
+    
+    SERVER_STATE['status'] = 'processing'
+    SERVER_STATE['current_task'] = organoid_id
     organoid = Organoid.query.get(organoid_id)
     if not organoid:
         return jsonify({'error': 'Nie znaleziono organoidu'}), 404
 
-    # Fix: Używamy pipeline_wrapper zamiast run_matlab_task
     thread = threading.Thread(
         target=pipeline_wrapper, 
         args=(organoid.filename, organoid.id)
@@ -335,9 +334,12 @@ def get_glb_file(organoid_id, layer_type):
     except FileNotFoundError:
         return abort(404, description="File not found")
 
-# Ten endpoint jest redundantny z trigger_processing ale zostawiamy dla kompatybilności
-@app.route('/organoid/process/<int:organoid_id>/', methods=['POST'])
-def process_file(organoid_id):
+@app.route('/organoid/process/', methods=['POST'])
+def process_file():
+    data = request.get_json(silent=True)
+    if not data:
+        data = request.form
+    organoid_id = data.get('organoidId')
     return trigger_processing(organoid_id)
     
 @socketio.on('connect')
@@ -345,10 +347,8 @@ def handle_connect():
     emit('server_state', SERVER_STATE)
 
 if __name__ == '__main__':
-    # TWORZENIE TABEL JEŚLI NIE ISTNIEJĄ (Szybki fix na błąd "Table doesn't exist")
     with app.app_context():
         db.create_all()
         print("--- Baza danych zaktualizowana (db.create_all) ---")
 
-    # Uruchamianie serwera SocketIO
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

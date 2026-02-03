@@ -1,12 +1,15 @@
 import { ArrowLeft} from "@mui/icons-material";
 import ModelInterface from "../components/ModelInterface";
 import { useNavigate, useParams } from "react-router-dom";
-import { useOrganoid } from "../services/Organoid";
+import { useOrganoid, useProcessOrganoid } from "../services/Organoid";
+import { useSocket } from "../context/SocketContext";
 
 const SingleSetInterface = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { data: organoidData, isLoading, error } = useOrganoid(+(id ?? 0));
+  const { serverState, isConnected } = useSocket();
+  const { mutate: processOrganoid } = useProcessOrganoid();
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#e8e8e8', display: 'flex', flexDirection: 'column' }}>
@@ -33,13 +36,43 @@ const SingleSetInterface = () => {
           Reprezentacja modelu 3D:
         </label>
         {isLoading ? (
-          <div style={{marginLeft: '80px'}}>Ładowanie danych organoidu...</div>
+          <div style={{marginLeft: '80px'}}>
+            <label>Ładowanie danych organoidu...</label>
+          </div>
         ) : error ? (
-          <div style={{marginLeft: '80px'}}>Błąd: {error?.message}</div>
+          <div style={{marginLeft: '80px'}}>
+            <label>Błąd: {error?.message}</label>
+          </div>
         ) : !organoidData?.isInitialized ? (
-          <div style={{marginLeft: '80px'}}>Organoid nie został jeszcze zainicjalizowany.</div>
+          <div style={{marginLeft: '80px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+            <label>Organoid nie został jeszcze zainicjalizowany.</label>
+            <button
+              className="sendNewDatasetButton"
+              style={{maxWidth: 300}}
+              onClick={() => {
+                processOrganoid(+(id ?? 0));
+                navigate('/');
+              }}
+              disabled={serverState.status == 'processing' || serverState.current_task !== null || !isConnected}
+            >
+              Generuj plik glb
+            </button>
+          </div>
         ) : !organoidData?.isProcessedGlb ? (
-          <div style={{marginLeft: '80px'}}>Model organoidu nie został jeszcze utworzony</div>
+          <div style={{marginLeft: '80px'}}>
+            <label>Model organoidu nie został jeszcze utworzony</label>
+            <button
+              className="sendNewDatasetButton"
+              style={{maxWidth: 300}}
+              onClick={() => {
+                processOrganoid(+(id ?? 0));
+                navigate('/');
+              }}
+              disabled={serverState.status == 'processing' || serverState.current_task !== null || !isConnected}
+            >
+              Generuj plik glb
+            </button>
+          </div>
         ) : (
           <ModelInterface orgId={+(id ?? 0)} />
         )}

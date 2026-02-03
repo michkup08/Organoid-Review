@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useCreateOrganoid, useOrganoids } from "../services/Organoid";
 import { useState, type ChangeEvent } from "react";
 import './MailMenu.css';
+import LogTerminal from "../components/TerminalView";
 
 const MainMenu = () => {
   const navigate = useNavigate();
@@ -192,6 +193,7 @@ const MainMenu = () => {
         <label style={{ fontSize: '18px', fontWeight: 'bold', color: '#333' }}>
           Aktualny stan serwera:
         </label>
+        <LogTerminal />
       </div>
 
     </div>
