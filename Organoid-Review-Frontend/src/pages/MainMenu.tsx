@@ -52,7 +52,10 @@ const MainMenu = () => {
     }
   };
 
-  if (isLoading) return <div>Ładowanie organoidów...</div>;
+  if (isLoading) return 
+    <div style={{justifyContent: 'center', alignItems: 'center'}}>
+      Ładowanie organoidów...
+    </div>;
   
   if (error) return <div>Błąd: {error.message}</div>;
 
