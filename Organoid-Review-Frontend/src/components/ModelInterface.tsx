@@ -65,6 +65,9 @@ const ModelInterface = ({ orgId }: { orgId?: number }) => {
 
   const isReady = !innerLoading && !outerLoading && innerUrl && outerUrl;
 
+  const dupa = () => {
+  }
+
   return (
     <div style={{ background: '#eee', display: 'flex', flexDirection: 'column', height: '100%', flexGrow: 1 }}>
       

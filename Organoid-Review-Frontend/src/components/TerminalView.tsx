@@ -9,9 +9,7 @@ interface LogTerminalProps {
 const LogTerminal: React.FC<LogTerminalProps> = ({ currentOrganoidId }) => {
     const { logs, isConnected, serverState, clearLogs } = useSocket();
 
-    // Filtrowanie logów
     const filteredLogs = logs.filter((log) => 
-        // Pokaż logi systemowe (organoid_id === null) ORAZ logi dla aktualnego organoidu
         currentOrganoidId == undefined || log.organoid_id == null || (currentOrganoidId != undefined && log.organoid_id == currentOrganoidId)
     );
 
@@ -73,9 +71,10 @@ const LogTerminal: React.FC<LogTerminalProps> = ({ currentOrganoidId }) => {
                 </button>
             </div>
 
-            {/* Logs Body */}
             <div style={{ 
                 flex: 1, 
+                display: 'flex',
+                flexDirection: 'column-reverse',
                 overflowY: 'auto', 
                 paddingRight: '5px' 
             }}>
