@@ -72,8 +72,13 @@ def main():
             if meshes:
                 # Naprawa geometrii (Batch Fix) - rozwiązuje problem "odwróconego cullingu"
                 bpy.ops.object.select_all(action='DESELECT')
+                # for obj in meshes:
+                #     obj.select_set(True)
                 for obj in meshes:
-                    obj.select_set(True)
+                    bpy.context.view_layer.objects.active = obj
+                    mod = obj.modifiers.new(name="Decimate", type='DECIMATE')
+                    mod.ratio = 0.02
+                    bpy.ops.object.modifier_apply(modifier=mod.name)
                 
                 bpy.context.view_layer.objects.active = meshes[0]
                 

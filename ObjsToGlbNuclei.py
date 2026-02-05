@@ -3,9 +3,21 @@ import os
 import glob
 import re
 
-# --- KONFIGURACJA ---
-INPUT_FOLDER = r"F:\pbl\output-OBJ-final\Tile_1_processed_binned-2b"
-OUTPUT_FILE = r"F:\pbl\output-OBJ-final\Tile_1_processed_binned-2b\anim\nuclei.glb"
+# --- POBIERANIE ARGUMENTÓW ---
+# Argumenty przekazywane do Blendera po "--"
+argv = sys.argv
+if "--" in argv:
+    args = argv[argv.index("--") + 1:]
+else:
+    args = []
+
+if len(args) < 2:
+    print("Błąd: Wymagane 2 argumenty: <folder_input> <plik_output>")
+    # Wychodzimy z błędem, aby Flask wiedział, że coś poszło nie tak
+    sys.exit(1)
+
+INPUT_FOLDER = args[0]
+OUTPUT_FILE = args[1]
 FILE_EXT = "*.obj"
 FPS = 10
 
@@ -28,6 +40,9 @@ def clean_scene():
     bpy.ops.outliner.orphans_purge()
 
 def main():
+    global_undo_state = bpy.context.preferences.edit.use_global_undo
+    bpy.context.preferences.edit.use_global_undo = False
+
     clean_scene()
     
     files = glob.glob(os.path.join(INPUT_FOLDER, FILE_EXT))
@@ -37,15 +52,38 @@ def main():
         print("Brak plików!")
         return
 
-    print(f"Tworzenie animacji Teleportacji (Z-Hiding) z {len(files)} plików...")
+    print(f"Tworzenie animacji z {len(files)} plików...")
     
     # 1. IMPORT
     frame_containers = [] 
     
     for i, file_path in enumerate(files):
         bpy.ops.wm.obj_import(filepath=file_path)
-        selected = bpy.context.selected_objects
+        # selected = bpy.context.selected_objects
         
+        # # Tworzymy rodzica
+        # bpy.ops.object.empty_add(type='PLAIN_AXES', location=HIDDEN_LOC)
+        # frame_parent = bpy.context.active_object
+        # frame_parent.name = f"Frame_{i}"
+        
+        # # Przypisujemy dzieci
+        # for obj in selected:
+        #     if obj.type == 'MESH':
+        #         obj.parent = frame_parent
+        meshes = [obj for obj in selected if obj.type == 'MESH']
+            
+        if meshes:
+            for obj in meshes:
+                # Obiekt musi być aktywny, aby dodać modyfikator
+                bpy.context.view_layer.objects.active = obj
+                
+                mod = obj.modifiers.new(name="Decimate", type='DECIMATE')
+                mod.ratio = 0.02
+                
+                # Zaaplikowanie modyfikatora (fizyczna zmiana siatki)
+                bpy.ops.object.modifier_apply(modifier=mod.name)
+        # ---------------------------------------
+
         # Tworzymy rodzica
         bpy.ops.object.empty_add(type='PLAIN_AXES', location=HIDDEN_LOC)
         frame_parent = bpy.context.active_object
@@ -53,8 +91,7 @@ def main():
         
         # Przypisujemy dzieci
         for obj in selected:
-            if obj.type == 'MESH':
-                obj.parent = frame_parent
+            obj.parent = frame_parent
         
         frame_containers.append(frame_parent)
         bpy.ops.object.select_all(action='DESELECT')
@@ -131,7 +168,7 @@ def main():
             
             export_materials='EXPORT'
         )
-    print("SUKCES! (Metoda Teleportacji)")
+    print("SUKCES!")
 
 if __name__ == "__main__":
     main()
