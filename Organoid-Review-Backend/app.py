@@ -60,18 +60,20 @@ DATA_MOUNT_POINT = '/app/data'
 # Dzięki temu pliki wylądują na Twoim dysku F:
 
 # Jeśli Twój folder na dysku F zawiera bezpośrednio pliki .tif:
-TIFS_FOLDER = DATA_MOUNT_POINT
+TIFS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'tiffs')
 
 # Tutaj trafią wyniki (utworzą się fizyczne foldery na dysku F:)
-GLBS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'output-GLB')
-OBJS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'output-OBJ')
+GLBS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'glbs')
+OBJS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'objs')
 PROCESSED_FOLDER = os.path.join(DATA_MOUNT_POINT, 'processed_data') # Dla numpy
-PLOT_FOLDER = os.path.join(DATA_MOUNT_POINT, 'output-PLOTS')
+PLOT_FOLDER = os.path.join(DATA_MOUNT_POINT, 'matlab')
 
 # Foldery kodu (skrypty) zostają w app.root_path, bo one są częścią aplikacji, a nie danych
 MATLAB_FOLDER = os.path.join(app.root_path, 'matlab')
-BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbCoat.py')
-BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbNuclei.py')
+# BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbCoat.py')
+# BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbNuclei.py')
+BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbPack.py')
+BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbPack.py')
 BLENDER_EXEC = "/opt/blender/blender"
 
 app.config['UPLOAD_FOLDER'] = TIFS_FOLDER
@@ -371,6 +373,15 @@ def process_file():
         data = request.form
     organoid_id = data.get('organoidId')
     return trigger_processing(organoid_id)
+
+
+@app.route('/testprocess/', methods=['POST'])
+def testprocess():
+    base_folder = app.config['UPLOAD_FOLDER']
+    input_file = os.path.join(base_folder, "Tile_1_processed_binned-2b.tif")
+    process_pipeline(input_file, base_folder)
+
+    return "Process started", 200
     
 @socketio.on('connect')
 def handle_connect():

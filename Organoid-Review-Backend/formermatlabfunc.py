@@ -26,7 +26,6 @@ def parse_imagej_metadata(tif):
 
 
 def center_volume(volume):
-    """Oblicza przesunięcie środka masy do środka ramki."""
     mass_center = ndimage.center_of_mass(volume)
     if np.any(np.isnan(mass_center)):
         return (0, 0, 0)
@@ -35,40 +34,34 @@ def center_volume(volume):
 
 
 def run_processing(input_file_path, output_base_folder):
+    """ Generuje NPY (dane numeryczne) """
     filename = os.path.basename(input_file_path)
     exp_name = os.path.splitext(filename)[0]
-
-    # Folder na wycentrowane dane numeryczne (Input dla modeli i meshera)
     output_npy = os.path.join(output_base_folder, 'processed_data', exp_name)
     os.makedirs(output_npy, exist_ok=True)
 
-    print(f"[PROCESSOR] Processing: {filename}")
-
-    CH_SEG = 0  # Coat
-    CH_ADD = 1  # Nuclei
+    print(f"[PROCESSOR] Generating NPY for: {filename}")
+    CH_SEG = 0;
+    CH_ADD = 1
 
     with tifffile.TiffFile(input_file_path) as tif:
         meta = parse_imagej_metadata(tif)
         volume_data = tif.asarray()
 
     dims = volume_data.shape
-    num_t = meta['frames']
-    num_z = meta['slices']
+    num_t = meta['frames'];
+    num_z = meta['slices'];
     num_ch = meta['channels']
-    dim_y = dims[-2]
+    dim_y = dims[-2];
     dim_x = dims[-1]
-
     flat_data = volume_data.reshape(-1, dim_y, dim_x)
 
-    begin_t = 1
+    begin_t = 1;
     end_t = num_t - 1 if (num_t - 1) > 1 else num_t
-
     processed_frames = []
 
     for t in range(begin_t, end_t):
         frame_idx = t + 1
-
-        # 1. Ekstrakcja
         vol_ch1 = np.zeros((num_z, dim_y, dim_x), dtype=np.float32)
         vol_ch2 = np.zeros((num_z, dim_y, dim_x), dtype=np.float32)
 
@@ -76,161 +69,98 @@ def run_processing(input_file_path, output_base_folder):
             idx1 = t * num_z * num_ch + z * num_ch + CH_SEG
             idx2 = t * num_z * num_ch + z * num_ch + CH_ADD
             vol_ch1[z, :, :] = flat_data[idx1]
-            if num_ch > 1:
-                vol_ch2[z, :, :] = flat_data[idx2]
+            if num_ch > 1: vol_ch2[z, :, :] = flat_data[idx2]
 
-        if np.max(vol_ch1) == 0 and np.max(vol_ch2) == 0:
-            continue
+        if np.max(vol_ch1) == 0 and np.max(vol_ch2) == 0: continue
 
-        # 2. Centrowanie (na podstawie sumy)
         vol_sum = vol_ch1 + vol_ch2
         shift_vector = center_volume(vol_sum)
 
-        # Aplikujemy TO SAMO przesunięcie do obu kanałów
         vol_coat_centered = ndimage.shift(vol_sum, shift_vector, order=1, mode='constant', cval=0)
         vol_nuclei_centered = ndimage.shift(vol_ch2, shift_vector, order=1, mode='constant', cval=0)
 
-        # Konwersja do uint8 (dla oszczędności miejsca i zgodności z modelami)
         coat_uint8 = np.clip(vol_coat_centered, 0, 255).astype(np.uint8)
         nuclei_uint8 = np.clip(vol_nuclei_centered, 0, 255).astype(np.uint8)
 
-        # 3. Zapis NPY
-        coat_path = os.path.join(output_npy, f"T{frame_idx:03d}_Coat.npy")
-        nuclei_path = os.path.join(output_npy, f"T{frame_idx:03d}_Nuclei.npy")
-
-        np.save(coat_path, coat_uint8)
-        np.save(nuclei_path, nuclei_uint8)
-
+        np.save(os.path.join(output_npy, f"T{frame_idx:03d}_Coat.npy"), coat_uint8)
+        np.save(os.path.join(output_npy, f"T{frame_idx:03d}_Nuclei.npy"), nuclei_uint8)
         processed_frames.append(frame_idx)
 
-        if frame_idx % 10 == 0:
-            print(f"  Processed Frame T={frame_idx}")
+        if frame_idx % 10 == 0: print(f"  Processed NPY T={frame_idx}")
 
-    print(f"[PROCESSOR] Finished. Data saved to {output_npy}")
     return output_npy, processed_frames
+
 
 def process_pipeline(input_file_path, output_folder):
     filename = os.path.basename(input_file_path)
     exp_name = os.path.splitext(filename)[0]
 
-    # --- KONFIGURACJA FOLDERÓW POD BLENDERA ---
-    # Muszą pasować do INPUT_FOLDER w skryptach Blendera
+    # --- KROK 1: Generowanie NPY (Dane numeryczne) ---
+    # Uruchamiamy to RAZ, przed wejściem w pętlę generowania grafiki
+    npy_folder, frames = run_processing(input_file_path, output_folder)
+
+    # Konfiguracja folderów wyjściowych OBJ
     output_coat = os.path.join(output_folder, 'output-OBJ-coat', exp_name)
     output_nuclei = os.path.join(output_folder, 'output-OBJ-final', exp_name)
-
     os.makedirs(output_coat, exist_ok=True)
     os.makedirs(output_nuclei, exist_ok=True)
 
-    print(f"--- Processing: {filename} ---")
-    print(f"Output Coat: {output_coat}")
-    print(f"Output Nuclei: {output_nuclei}")
+    print(f"--- Processing Meshes for: {filename} ---")
 
-    # Parametry
-    CH_SEG = 0
-    CH_ADD = 1
+    # Parametry (Takie jak miałeś w oryginale)
     COAT_THRESH_FACTOR = 0.10
-    COAT_REDUCTION = 0.2
-
-    TARGET_CH = 1
     MIN_NUCLEUS_VOL = 500
     NUCLEI_THRESH_FACTOR = 0.10
-    NUCLEI_REDUCTION = 0.2
     SMOOTH_SIGMA = 1.5
     SMOOTH_MESH_SIGMA = 0.6
-
     BLENDER_SCALE = 0.02
 
-    with tifffile.TiffFile(input_file_path) as tif:
-        meta = parse_imagej_metadata(tif)
-        volume_data = tif.asarray()
+    # --- KROK 2: PĘTLA GENERUJĄCA OBJ (Tylko grafika) ---
+    for frame_idx in frames:
+        print(f"  Meshing Frame T={frame_idx}...")
 
-    dims = volume_data.shape
-    num_t = meta['frames']
-    num_z = meta['slices']
-    num_ch = meta['channels']
-    dim_y = dims[-2]
-    dim_x = dims[-1]
+        # Wczytujemy dane z NPY (szybciej niż z TIFF)
+        coat_path = os.path.join(npy_folder, f"T{frame_idx:03d}_Coat.npy")
+        nuclei_path = os.path.join(npy_folder, f"T{frame_idx:03d}_Nuclei.npy")
 
-    flat_data = volume_data.reshape(-1, dim_y, dim_x)
-    global_center = np.array([dim_x, dim_y, num_z]) / 2.0
+        # Jeśli plik nie istnieje (np. pusta klatka), pomiń
+        if not os.path.exists(coat_path): continue
 
-    begin_t = 1
-    end_t = num_t - 1
-    if end_t < begin_t:
-        begin_t = 0
-        end_t = num_t
+        vol_coat = np.load(coat_path)
+        vol_nuclei = np.load(nuclei_path)
 
-    print(f"Dimensions: T={num_t}, Z={num_z}, CH={num_ch}, Y={dim_y}, X={dim_x}")
-    print(f"Processing Frames: {begin_t + 1} to {end_t} (1-based)")
+        # Obliczamy środek do skalowania
+        dims = vol_coat.shape
+        global_center = np.array([dims[2], dims[1], dims[0]]) / 2.0
 
-    # --- GŁÓWNA PĘTLA PO CZASIE ---
-    for t in range(begin_t, end_t):
-        frame_idx = t + 1
-        print(f"  Frame T={frame_idx}...")
+        # --- A. COAT MESH ---
+        try:
+            vol_coat_smooth = ndimage.gaussian_filter(vol_coat.astype(float), sigma=1.0)
+            max_val = np.max(vol_coat_smooth)
 
-        vol_ch1 = np.zeros((num_z, dim_y, dim_x), dtype=np.float32)
-        vol_ch2 = np.zeros((num_z, dim_y, dim_x), dtype=np.float32)
+            if max_val > 0:
+                iso_level = max_val * COAT_THRESH_FACTOR
+                verts, faces, _, _ = measure.marching_cubes(vol_coat_smooth, iso_level)
 
-        for z in range(num_z):
-            idx1 = t * num_z * num_ch + z * num_ch + CH_SEG
-            idx2 = t * num_z * num_ch + z * num_ch + CH_ADD
-            vol_ch1[z, :, :] = flat_data[idx1]
-            if num_ch > 1:
-                vol_ch2[z, :, :] = flat_data[idx2]
-
-        if np.max(vol_ch1) == 0 and np.max(vol_ch2) == 0:
-            print("    Skipping empty frame.")
-            continue
-
-        # ==========================================
-        # CZĘŚĆ A: COAT (Otoczka) -> Pojedynczy plik OBJ
-        # ==========================================
-        vol_coat = vol_ch1 + vol_ch2
-        vol_coat_smooth = ndimage.gaussian_filter(vol_coat, sigma=1.0)
-        max_val_coat = np.max(vol_coat_smooth)
-
-        if max_val_coat > 0:
-            iso_level = max_val_coat * COAT_THRESH_FACTOR
-            try:
-                verts, faces, normals, values = measure.marching_cubes(vol_coat_smooth, iso_level)
-
-                # Konwersja (Z, Y, X) -> (X, Y, Z)
-                verts_xyz = np.zeros_like(verts)
-                verts_xyz[:, 0] = verts[:, 2]  # X
-                verts_xyz[:, 1] = verts[:, 1]  # Y
-                verts_xyz[:, 2] = verts[:, 0]  # Z
+                # Konwersja ZYX -> XYZ
+                verts_xyz = verts[:, [2, 1, 0]]
 
                 mesh = trimesh.Trimesh(vertices=verts_xyz, faces=faces)
 
-                # Redukcja
-                if COAT_REDUCTION < 1.0:
-                    try:
-                        target_faces = int(len(mesh.faces) * COAT_REDUCTION)
-                        mesh = mesh.simplify_quadratic_decimation(target_faces)
-                    except Exception:
-                        pass
-
-                        # Transformacje
+                # Transformacje (bez redukcji w Pythonie)
                 mesh.vertices -= global_center
                 mesh.vertices *= BLENDER_SCALE
 
-                # ZAPIS DO PLIKU OBJ (Dla skryptu objstoglbcoat.py)
-                # Nazwa: np. Tile_1..._Frame_T005.obj
-                coat_filename = f"{exp_name}_Frame_T{frame_idx:03d}.obj"
-                mesh.export(os.path.join(output_coat, coat_filename))
+                mesh.export(os.path.join(output_coat, f"{exp_name}_Frame_T{frame_idx:03d}.obj"))
+        except Exception:
+            pass
 
-            except Exception as e:
-                print(f"    Error Coat: {e}")
-
-        # ==========================================
-        # CZĘŚĆ B: NUCLEI (Jądra) -> Jeden OBJ na klatkę (z wieloma obiektami w środku)
-        # ==========================================
-        vol_nuclei_raw = vol_ch2
-        vol_nuc_smooth = ndimage.gaussian_filter(vol_nuclei_raw, sigma=SMOOTH_SIGMA)
-
+        # --- B. NUCLEI MESH ---
         try:
-            thresh_val = filters.threshold_otsu(vol_nuc_smooth)
-            bw = vol_nuc_smooth > thresh_val
+            # Segmentacja
+            vol_nuc_smooth = ndimage.gaussian_filter(vol_nuclei.astype(float), sigma=SMOOTH_SIGMA)
+            thresh = filters.threshold_otsu(vol_nuc_smooth)
+            bw = vol_nuc_smooth > thresh
             distance = ndimage.distance_transform_edt(bw)
             coords = feature.peak_local_max(distance, min_distance=4, labels=bw)
             mask = np.zeros(distance.shape, dtype=bool)
@@ -239,73 +169,48 @@ def process_pipeline(input_file_path, output_folder):
             labels = segmentation.watershed(-distance, markers, mask=bw)
             regions = measure.regionprops(labels)
 
-            # Tworzymy scenę TYLKO dla tej klatki
             frame_scene = trimesh.Scene()
             nuclei_in_frame = 0
 
             for region in regions:
-                if region.area < MIN_NUCLEUS_VOL:
-                    continue
+                if region.area < MIN_NUCLEUS_VOL: continue
 
-                min_z, min_y, min_x = region.bbox[0], region.bbox[1], region.bbox[2]
-                max_z, max_y, max_x = region.bbox[3], region.bbox[4], region.bbox[5]
+                min_z, min_y, min_x = region.bbox[:3]
+                max_z, max_y, max_x = region.bbox[3:]
 
-                crop_vol = vol_nuclei_raw[min_z:max_z, min_y:max_y, min_x:max_x]
-                nucleus_vol = crop_vol * region.image
-                nucleus_vol_smooth = ndimage.gaussian_filter(nucleus_vol, sigma=SMOOTH_MESH_SIGMA)
+                crop = vol_nuclei[min_z:max_z, min_y:max_y, min_x:max_x] * region.image
+                crop_smooth = ndimage.gaussian_filter(crop.astype(float), sigma=SMOOTH_MESH_SIGMA)
 
-                max_n_val = np.max(nucleus_vol_smooth)
-                if max_n_val == 0: continue
-
-                iso_lev_nuc = max_n_val * NUCLEI_THRESH_FACTOR
+                if np.max(crop_smooth) == 0: continue
 
                 try:
-                    v_n, f_n, _, _ = measure.marching_cubes(nucleus_vol_smooth, iso_lev_nuc)
+                    # Generowanie siatki jądra
+                    iso_lev = np.max(crop_smooth) * NUCLEI_THRESH_FACTOR
+                    v_n, f_n, _, _ = measure.marching_cubes(crop_smooth, iso_lev)
 
-                    v_xyz = np.zeros_like(v_n)
-                    v_xyz[:, 0] = v_n[:, 2]
-                    v_xyz[:, 1] = v_n[:, 1]
-                    v_xyz[:, 2] = v_n[:, 0]
-
-                    v_xyz[:, 0] += min_x
-                    v_xyz[:, 1] += min_y
-                    v_xyz[:, 2] += min_z
+                    v_xyz = v_n[:, [2, 1, 0]]
+                    v_xyz += [min_x, min_y, min_z]  # Przesunięcie do pozycji w klatce
 
                     n_mesh = trimesh.Trimesh(vertices=v_xyz, faces=f_n)
 
-                    if NUCLEI_REDUCTION < 1.0:
-                        try:
-                            target_f = int(len(n_mesh.faces) * NUCLEI_REDUCTION)
-                            if target_f > 10:
-                                n_mesh = n_mesh.simplify_quadratic_decimation(target_f)
-                        except Exception:
-                            pass
-
+                    # Transformacje
                     n_mesh.vertices -= global_center
                     n_mesh.vertices *= BLENDER_SCALE
 
-                    # Dodajemy do sceny klatki.
-                    # WAŻNE: W OBJ nazwa obiektu to node_name
-                    n_node_name = f"Nucleus_{region.label}"
-                    frame_scene.add_geometry(n_mesh, node_name=n_node_name)
-
+                    # Dodajemy do sceny (bez scalania w jedną siatkę - zachowujemy obiekty)
+                    frame_scene.add_geometry(n_mesh, node_name=f"Nucleus_{region.label}")
                     nuclei_in_frame += 1
-
-                except Exception:
+                except:
                     pass
 
-            # ZAPIS DO PLIKU OBJ (Dla skryptu objstoglbnuclei.py)
             if nuclei_in_frame > 0:
-                nuclei_filename = f"{exp_name}_Frame_T{frame_idx:03d}.obj"
-                frame_scene.export(os.path.join(output_nuclei, nuclei_filename))
-                print(f"    Saved {nuclei_in_frame} nuclei to {nuclei_filename}")
-            else:
-                print("    No nuclei found.")
-
-            npy_folder, frames = run_processing(input_file_path, output_folder)
-            modelrdlinear.run_model(npy_folder, output_folder, exp_name)
+                frame_scene.export(os.path.join(output_nuclei, f"{exp_name}_Frame_T{frame_idx:03d}.obj"))
 
         except Exception as e:
-            print(f"    Error processing nuclei seg: {e}")
+            print(f"    Error nuclei: {e}")
 
-    print("--- Finished ---")
+    # --- KROK 3: MODEL MATEMATYCZNY (Dopiero po zakończeniu wszystkich klatek!) ---
+    print("\n=== STEP 3: Mathematical Modeling (RD) ===")
+    modelrdlinear.run_model(npy_folder, output_folder, exp_name)
+
+    print("--- All Pipelines Finished ---")
