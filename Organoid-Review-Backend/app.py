@@ -1,3 +1,4 @@
+from re import fullmatch
 import eventlet
 eventlet.monkey_patch()
 
@@ -31,18 +32,18 @@ dbname = os.environ.get('DB_NAME', 'organoid-db')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{user}:{password}@{host}/{dbname}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# TIFS_FOLDER = os.path.join(app.root_path, 'tiffs')
-# # GLBS_FOLDER = os.path.join(app.root_path, 'glbs')
-# # OBJS_FOLDER = os.path.join(app.root_path, 'objs')
-# # MATLAB_FOLDER = os.path.join(app.root_path, 'matlab')
-# # app.config['UPLOAD_FOLDER'] = TIFS_FOLDER
-# #
-# # BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbCoat.py')
-# # BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbNuclei.py')
-# # BLENDER_EXEC = "/opt/blender/blender"
-# #
-# # os.makedirs(TIFS_FOLDER, exist_ok=True)
-# # os.makedirs(OBJS_FOLDER, exist_ok=True)
+TIFS_FOLDER = os.path.join(app.root_path, 'tiffs')
+GLBS_FOLDER = os.path.join(app.root_path, 'glbs')
+OBJS_FOLDER = os.path.join(app.root_path, 'objs')
+MATLAB_FOLDER = os.path.join(app.root_path, 'matlab')
+app.config['UPLOAD_FOLDER'] = TIFS_FOLDER
+
+# BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbCoat.py')
+# BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbNuclei.py')
+# BLENDER_EXEC = "/opt/blender/blender"
+
+os.makedirs(TIFS_FOLDER, exist_ok=True)
+os.makedirs(OBJS_FOLDER, exist_ok=True)
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
@@ -54,24 +55,24 @@ SERVER_STATE = {
 
 # 1. To jest punkt styku z Windows (zdefiniowany w docker-compose jako volume)
 # Zmień mapowanie w docker-compose na: - ${DATA_PATH_HOST}:/app/data
-DATA_MOUNT_POINT = '/app/data'
+# DATA_MOUNT_POINT = '/app/data'
 
-# 2. Teraz wszystkie inne foldery budujemy RELATYWNIE do tego punktu
-# Dzięki temu pliki wylądują na Twoim dysku F:
+# # 2. Teraz wszystkie inne foldery budujemy RELATYWNIE do tego punktu
+# # Dzięki temu pliki wylądują na Twoim dysku F:
 
-# Jeśli Twój folder na dysku F zawiera bezpośrednio pliki .tif:
-TIFS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'tiffs')
+# # Jeśli Twój folder na dysku F zawiera bezpośrednio pliki .tif:
+# TIFS_FOLDER = os.path.join({DATA_PATH_HOST}, 'tiffs')
 
-# Tutaj trafią wyniki (utworzą się fizyczne foldery na dysku F:)
-GLBS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'glbs')
-OBJS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'objs')
-PROCESSED_FOLDER = os.path.join(DATA_MOUNT_POINT, 'processed_data') # Dla numpy
-PLOT_FOLDER = os.path.join(DATA_MOUNT_POINT, 'matlab')
+# # Tutaj trafią wyniki (utworzą się fizyczne foldery na dysku F:)
+# GLBS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'glbs')
+# OBJS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'objs')
+# PROCESSED_FOLDER = os.path.join(DATA_MOUNT_POINT, 'processed_data') # Dla numpy
+# PLOT_FOLDER = os.path.join(DATA_MOUNT_POINT, 'matlab')
 
-# Foldery kodu (skrypty) zostają w app.root_path, bo one są częścią aplikacji, a nie danych
-MATLAB_FOLDER = os.path.join(app.root_path, 'matlab')
-# BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbCoat.py')
-# BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbNuclei.py')
+# # Foldery kodu (skrypty) zostają w app.root_path, bo one są częścią aplikacji, a nie danych
+# MATLAB_FOLDER = os.path.join(app.root_path, 'matlab')
+# # BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbCoat.py')
+# # BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbNuclei.py')
 BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbPack.py')
 BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbPack.py')
 BLENDER_EXEC = "/opt/blender/blender"
@@ -81,8 +82,8 @@ app.config['UPLOAD_FOLDER'] = TIFS_FOLDER
 # Tworzenie folderów (żeby Python nie krzyczał, że ich nie ma)
 os.makedirs(GLBS_FOLDER, exist_ok=True)
 os.makedirs(OBJS_FOLDER, exist_ok=True)
-os.makedirs(PROCESSED_FOLDER, exist_ok=True)
-os.makedirs(PLOT_FOLDER, exist_ok=True)
+# os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+# os.makedirs(PLOT_FOLDER, exist_ok=True)
 
 class Organoid(db.Model):
     __tablename__ = 'organoids'
@@ -351,6 +352,60 @@ def get_organoid(organoid_id):
     if not organoid: return jsonify({})
     return jsonify({'id': organoid.id, 'name': organoid.name, 'isInitialized': organoid.is_initialized, 'isProcessedGlb': organoid.is_processed_glb, 'isInCurrentRd': organoid.is_in_current_rd})
     
+@app.route('/orthoSlices/<int:organoid_id>/', methods=['GET'])
+def get_ortho_slices_image(organoid_id):
+    organoid = Organoid.query.get(organoid_id)
+    if not organoid: return jsonify({})
+    file_path = os.path.join(OBJS_FOLDER, 'output-PLOTS', organoid.filename, 'Ortho_Slices.png')
+    if not os.path.exists(file_path):
+        return abort(404, description="File not found")
+    return send_from_directory(os.path.dirname(file_path), os.path.basename(file_path))
+
+@app.route('/lyapunov/<int:organoid_id>/', methods=['GET'])
+def get_lyapunov_image(organoid_id):
+    organoid = Organoid.query.get(organoid_id)
+    if not organoid: return jsonify({})
+    file_path = os.path.join(OBJS_FOLDER, 'output-PLOTS', organoid.filename, 'Lyapunov.png')
+    if not os.path.exists(file_path):
+        return abort(404, description="File not found")
+    return send_from_directory(os.path.dirname(file_path), os.path.basename(file_path))
+
+@app.route('/metrics/<int:organoid_id>/', methods=['GET'])
+def get_metrics(organoid_id):
+    organoid = Organoid.query.get(organoid_id)
+    if not organoid: return jsonify({})
+    file_path = os.path.join(OBJS_FOLDER, 'output-PLOTS', organoid.filename, 'metrics.json')
+    if not os.path.exists(file_path):
+        return abort(404, description="File not found")
+    return send_from_directory(os.path.dirname(file_path), os.path.basename(file_path))
+
+@app.route('/lyapunov_data/<int:organoid_id>/', methods=['GET'])
+def get_lyapunov_data(organoid_id):
+    organoid = Organoid.query.get(organoid_id)
+    if not organoid: return jsonify({})
+    file_path = os.path.join(OBJS_FOLDER, 'output-PLOTS', organoid.filename, 'lyapunov_data.json')
+    if not os.path.exists(file_path):
+        return abort(404, description="File not found")
+    return send_from_directory(os.path.dirname(file_path), os.path.basename(file_path))
+
+@app.route('/optimization_history/<int:organoid_id>/', methods=['GET'])
+def get_optimization_history(organoid_id):
+    organoid = Organoid.query.get(organoid_id)
+    if not organoid: return jsonify({})
+    file_path = os.path.join(OBJS_FOLDER, 'output-PLOTS', organoid.filename, 'optimization_history.json')
+    if not os.path.exists(file_path):
+        return abort(404, description="File not found")
+    return send_from_directory(os.path.dirname(file_path), os.path.basename(file_path))
+
+@app.route('/global_growth/<int:organoid_id>/', methods=['GET'])
+def get_global_growth(organoid_id):
+    organoid = Organoid.query.get(organoid_id)
+    if not organoid: return jsonify({})
+    file_path = os.path.join(OBJS_FOLDER, 'output-PLOTS', organoid.filename, 'global_growth.json')
+    if not os.path.exists(file_path):
+        return abort(404, description="File not found")
+    return send_from_directory(os.path.dirname(file_path), os.path.basename(file_path))
+
 @app.route('/organoid/<int:organoid_id>/<string:layer_type>', methods=['GET'])
 def get_glb_file(organoid_id, layer_type):
     if layer_type not in ['inner', 'outer']:
@@ -382,7 +437,7 @@ def testprocess():
     process_pipeline(input_file, base_folder)
 
     return "Process started", 200
-    
+
 @socketio.on('connect')
 def handle_connect():
     emit('server_state', SERVER_STATE)
