@@ -158,7 +158,7 @@ const MainMenu = () => {
                 className="mb-4"
               />
               <button
-                className="sendNewDatasetButton"
+                className="sendButton"
                 disabled={!selectedTiffFile || !newSetName || isUploading}
                 onClick={() => {
                   handleAddDataset();
