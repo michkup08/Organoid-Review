@@ -378,6 +378,7 @@ def get_global_growth(organoid_id):
         return abort(404, description="File not found")
     return send_from_directory(os.path.dirname(file_path), os.path.basename(file_path))
 
+
 @app.route('/organoid/<int:organoid_id>/<string:layer_type>', methods=['GET'])
 def get_glb_file(organoid_id, layer_type):
     if layer_type not in ['inner', 'outer']:
@@ -385,13 +386,39 @@ def get_glb_file(organoid_id, layer_type):
 
     organoid = Organoid.query.get(organoid_id)
     if not organoid or not organoid.filename:
+        print(f"BŁĄD: Organoid ID={organoid_id} nie istnieje.")
         return abort(404, description="No organoid found")
 
-    directory = os.path.join(app.root_path, 'glbs', layer_type)
-    try:
-        return send_from_directory(directory, organoid.filename + '.glb')
-    except FileNotFoundError:
-        return abort(404, description="File not found")
+    clean_filename = organoid.filename
+    if clean_filename.lower().endswith(('.tif', '.tiff')):
+        clean_filename = clean_filename.rsplit('.', 1)[0]
+
+    target_filename = f"{clean_filename}.glb"
+
+    search_directories = [
+        os.path.join(DATA_MOUNT_POINT, 'glbs', layer_type),
+        os.path.join(app.root_path, 'data', 'glbs', layer_type),
+        os.path.join(app.root_path, 'glbs', layer_type)
+    ]
+
+    print(f"DEBUG: Szukam pliku '{target_filename}' dla ID={organoid_id}...")
+
+    for directory in search_directories:
+        full_path = os.path.join(directory, target_filename)
+
+        if os.path.exists(full_path):
+            print(f"SUKCES: Znaleziono w: {full_path}")
+            try:
+                return send_from_directory(directory, target_filename)
+            except Exception as e:
+                print(f"BŁĄD wysyłania: {e}")
+                return abort(500)
+        else:
+            print(f"MISS: Nie ma w {full_path}")
+
+    # 6. Jeśli pętla się skończyła i nic nie zwróciła -> 404
+    print("BŁĄD: Pliku nie znaleziono.")
+    return abort(404, description="File not found on server")
 
 @app.route('/organoid/process/', methods=['POST'])
 def process_file():

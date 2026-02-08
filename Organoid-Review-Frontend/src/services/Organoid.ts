@@ -17,7 +17,7 @@ export interface OrganoidUploadPayload {
 }
 
 const fetchOrganoids = async (): Promise<Organoid[]> => {
-  const response = await fetch(`${API_URL}organoid/`);
+  const response = await fetch(`${API_URL}/organoid/`);
   
   if (!response.ok) {
     throw new Error('Wystąpił błąd podczas pobierania organoidów');
@@ -27,7 +27,7 @@ const fetchOrganoids = async (): Promise<Organoid[]> => {
 };
 
 const fetchOrganoid = async (id: number): Promise<Organoid> => {
-  const response = await fetch(`${API_URL}organoid/${id}/`);
+  const response = await fetch(`${API_URL}/organoid/${id}/`);
   
   if (!response.ok) {
     throw new Error('Wystąpił błąd podczas pobierania organoidów');
@@ -39,7 +39,7 @@ const fetchOrganoid = async (id: number): Promise<Organoid> => {
 
 export const fetchMetrics = async (organoidId: number): Promise<{ [key: string]: number }> => {
   if (organoidId === 0) return {};
-  const response = await fetch(`${API_URL}metrics/${organoidId}/`);
+  const response = await fetch(`${API_URL}/metrics/${organoidId}/`);
   if (!response.ok) {
     throw new Error('Wystąpił błąd podczas pobierania metryk organoidu');
   }
@@ -48,7 +48,7 @@ export const fetchMetrics = async (organoidId: number): Promise<{ [key: string]:
 
 export const fetchOrthoSlices = async (organoidId: number): Promise<string> => {
   if (organoidId === 0) return '';
-  const response = await fetch(`${API_URL}orthoSlices/${organoidId}/`);
+  const response = await fetch(`${API_URL}/orthoSlices/${organoidId}/`);
   if (!response.ok) {
     throw new Error('Wystąpił błąd podczas pobierania porównania przekrojów organoidu');
   }
@@ -58,7 +58,7 @@ export const fetchOrthoSlices = async (organoidId: number): Promise<string> => {
 
 export const fetchLyapunovImage = async (organoidId: number): Promise<string> => {
   if (organoidId === 0) return '';
-  const response = await fetch(`${API_URL}lyapunov/${organoidId}/`);
+  const response = await fetch(`${API_URL}/lyapunov/${organoidId}/`);
   if (!response.ok) {
     throw new Error('Wystąpił błąd podczas pobierania porównania przekrojów organoidu');
   }
@@ -75,7 +75,7 @@ type ChartDataLyapunov = {
 
 export const fetchLyapunovData = async (organoidId: number): Promise<ChartDataLyapunov> => {
   if (organoidId === 0) return null as any;
-  const response = await fetch(`${API_URL}lyapunov_data/${organoidId}/`);
+  const response = await fetch(`${API_URL}/lyapunov_data/${organoidId}/`);
   if (!response.ok) {
     throw new Error('Wystąpił błąd podczas pobierania danych do wykresu Lyapunova organoidu');
   }
@@ -90,7 +90,7 @@ type ChartDataOptymalizationHistory = {
 
 export const fetchOptimizationHistory = async (organoidId: number): Promise<ChartDataOptymalizationHistory> => {
   if (organoidId === 0) return null as any;
-  const response = await fetch(`${API_URL}optimization_history/${organoidId}/`);
+  const response = await fetch(`${API_URL}/optimization_history/${organoidId}/`);
   if (!response.ok) {
     throw new Error('Wystąpił błąd podczas pobierania historii optymalizacji organoidu');
   }
@@ -105,7 +105,7 @@ type ChartDataGlobalGwowth = {
 
 export const fetchGlobalGrowth = async (organoidId: number): Promise<ChartDataGlobalGwowth> => {
   if (organoidId === 0) return null as any;
-  const response = await fetch(`${API_URL}global_growth/${organoidId}/`);
+  const response = await fetch(`${API_URL}/global_growth/${organoidId}/`);
   if (!response.ok) {
     throw new Error('Wystąpił błąd podczas pobierania danych do wykresu globalnego wzrostu organoidu');
   }
@@ -117,7 +117,7 @@ const uploadOrganoid = async ({ name, file }: OrganoidUploadPayload): Promise<an
   formData.append('name', name);
   formData.append('file', file);
 
-  const response = await fetch(`${API_URL}dataset/`, {
+  const response = await fetch(`${API_URL}/dataset/`, {
     method: 'POST',
     body: formData,
   });
@@ -134,7 +134,7 @@ const processOrganoid = async ({ organoidId }: {organoidId: number}): Promise<an
   const formData = new FormData();
   formData.append('organoidId', organoidId.toString());
 
-  const response = await fetch(`${API_URL}organoid/process/`, {
+  const response = await fetch(`${API_URL}/organoid/process/`, {
     method: 'POST',
     body: formData,
   });
