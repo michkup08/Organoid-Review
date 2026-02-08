@@ -13,13 +13,12 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import matplotlib
 
-# Ustawienie backendu matplotlib na 'Agg' (bezokienkowy) dla Dockera
 matplotlib.use('Agg')
 
 
 def build_laplacian(Nx, Ny, Nz):
     """
-    Tworzy macierz operatora Laplace'a (L_3D) dla spłaszczenia typu C-order (Z, Y, X).
+    Tworzy macierz Laplasjanu (L_3D) dla spłaszczenia typu C-order (Z, Y, X).
     Z - najwolniejszy indeks, X - najszybszy.
     L = Dz (x) Iy (x) Ix  +  Iz (x) Dy (x) Ix  +  Iz (x) Iy (x) Dx
     """
@@ -59,7 +58,7 @@ def build_laplacian(Nx, Ny, Nz):
 def cost_function_structural(params, dataset, L_3D, t_eval, alpha=0.0):
     """
     Odpowiednik matlabowego cost3D_Isotropic_Structural.
-    Jeśli alpha > 0, dodaje błąd gradientu (structural similarity).
+    dodaje błąd gradientu (structural similarity).
     """
     D = abs(params[0])
     Rho = params[1]
@@ -85,7 +84,6 @@ def cost_function_structural(params, dataset, L_3D, t_eval, alpha=0.0):
             # sol.y shape: (num_voxels, num_steps) -> transpozycja na (Time, Voxels)
             sim_flat = sol.y.T
 
-            # --- Obliczanie błędu ---
             # MSE
             real_flat = real_data.reshape(real_data.shape[0], -1)
             mse_err = np.nansum((sim_flat - real_flat) ** 2)
@@ -97,12 +95,10 @@ def cost_function_structural(params, dataset, L_3D, t_eval, alpha=0.0):
 
                 # Obliczanie gradientów dla każdego kroku czasowego
                 # np.gradient zwraca listę [grad_Z, grad_Y, grad_X] (zależnie od osi)
-                # Iterujemy po czasie, żeby nie liczyć gradientu po osi czasu
                 for t_idx in range(len(t_eval)):
                     vol_sim = sim_4d[t_idx]
                     vol_real = real_data[t_idx]
 
-                    # Gradienty 3D
                     gs = np.gradient(vol_sim)  # [gz, gy, gx]
                     gr = np.gradient(vol_real)
 
@@ -123,7 +119,7 @@ def calculate_metrics(y_real, y_model, A_final, u0, t_eval, n_params=2):
     """
     Oblicza RMSE, R2, AIC, Lyapunov, Pearson, Spearman, RESET.
     """
-    # 1. Podstawowe statystyki
+
     residuals = y_real - y_model
     sse = np.sum(residuals ** 2)
     n_points = len(y_real)
@@ -135,33 +131,27 @@ def calculate_metrics(y_real, y_model, A_final, u0, t_eval, n_params=2):
     # AIC: n * log(SSE/n) + 2k
     aic = n_points * np.log(sse / n_points) + 2 * n_params if sse > 0 else np.inf
 
-    # 2. Korelacje
     r_pearson, _ = pearsonr(y_real, y_model)
     r_spearman, _ = spearmanr(y_real, y_model)
 
-    # 3. RESET Proxy (korelacja reszt z kwadratem modelu)
     y_mod2 = y_model ** 2
     reset_corr, _ = pearsonr(residuals, y_mod2)
 
-    # 4. Wykładnik Lyapunova (Perturbacja)
     epsilon = 1e-6
     u0_pert = u0 + epsilon * np.random.rand(len(u0))
 
-    # Symulacja zaburzona
+
     try:
         sol_pert = solve_ivp(lambda t, y: A_final @ y, [t_eval[0], t_eval[-1]], u0_pert, t_eval=t_eval, method='RK45')
-        # Symulacja oryginalna (trzeba przeliczyć lub przekazać, tu liczymy dla pewności kształtów)
+
         sol_orig = solve_ivp(lambda t, y: A_final @ y, [t_eval[0], t_eval[-1]], u0, t_eval=t_eval, method='RK45')
 
-        # Obliczanie dystansu w czasie
-        # sol.y shape (voxels, time) -> transponujemy do (time, voxels)
+
         U_sim = sol_orig.y.T
         U_pert = sol_pert.y.T
 
         dists = np.linalg.norm(U_sim - U_pert, axis=1)
 
-        # Dopasowanie wykładnicze: log(dist) ~ lambda * t + b
-        # Unikamy log(0) dodając eps
         log_dists = np.log(dists + np.finfo(float).eps)
         coeffs = np.polyfit(t_eval, log_dists, 1)
         lambda_lyap = coeffs[0]
@@ -180,13 +170,11 @@ def calculate_metrics(y_real, y_model, A_final, u0, t_eval, n_params=2):
 
 
 def run_model(input_npy_folder, output_base_folder, exp_name):
-    print(f"[MODEL] Starting Linear RD Analysis (MATLAB-Style) for {exp_name}...")
+    print(f"[MODEL] Starting Linear Reaction-Diffusion Analysis for {exp_name}...")
 
-    # Konfiguracja wyjścia
     output_plots = os.path.join(output_base_folder, 'output-PLOTS', exp_name)
     os.makedirs(output_plots, exist_ok=True)
 
-    # 1. Wczytanie danych
     TARGET_SHAPE = (50, 50, 50)
     files = sorted(glob.glob(os.path.join(input_npy_folder, "*_Coat.npy")))
     if len(files) < 2:
@@ -210,16 +198,13 @@ def run_model(input_npy_folder, output_base_folder, exp_name):
     num_frames = data_4d.shape[0]
     t_eval = np.arange(num_frames)
 
-    # 2. Budowa Operatora
     Nz, Ny, Nx = TARGET_SHAPE
     print(f"[MODEL] Building Laplacian {Nx}x{Ny}x{Nz}...")
     L_3D = build_laplacian(Nx, Ny, Nz)
 
-    # 3. Optymalizacja z Callbackiem (JSON: Optimization History)
     initial_params = [0.001, 0.002]
     alpha_struct = 8.0
 
-    # --- NOWOŚĆ: Przechowywanie historii optymalizacji ---
     opt_history = {
         'iteration': [],
         'D': [],
@@ -230,7 +215,7 @@ def run_model(input_npy_folder, output_base_folder, exp_name):
         """Callback wywoływany po każdej iteracji Nelder-Mead"""
         iter_idx = len(opt_history['iteration']) + 1
         opt_history['iteration'].append(iter_idx)
-        opt_history['D'].append(float(abs(xk[0])))  # json.dump nie lubi numpy types
+        opt_history['D'].append(float(abs(xk[0])))
         opt_history['Rho'].append(float(xk[1]))
         print(f"   Iter {iter_idx}: D={abs(xk[0]):.5f}, Rho={xk[1]:.5f}")
 
@@ -241,7 +226,7 @@ def run_model(input_npy_folder, output_base_folder, exp_name):
         initial_params,
         args=(dataset, L_3D, t_eval, alpha_struct),
         method='Nelder-Mead',
-        callback=optimization_callback,  # <--- Podpięcie callbacka
+        callback=optimization_callback,
         options={'maxiter': 100, 'disp': True, 'xatol': 1e-4, 'fatol': 1e-2}
     )
 
@@ -249,28 +234,24 @@ def run_model(input_npy_folder, output_base_folder, exp_name):
     Rho_opt = res.x[1]
     print(f"[MODEL] Result: D={D_opt:.5f}, Rho={Rho_opt:.5f}")
 
-    # 4. Symulacja Finalna
     A_final = D_opt * L_3D + Rho_opt * sp.eye(L_3D.shape[0])
     sol = solve_ivp(lambda t, y: A_final @ y, [0, num_frames - 1], u0, t_eval=t_eval, method='RK45')
 
     sim_flat = sol.y.T
     sim_4d = sim_flat.reshape(num_frames, Nz, Ny, Nx)
 
-    # 5. Walidacja i Metryki
     print("[MODEL] Calculating Validation Metrics...")
     y_real = data_4d.flatten()
     y_model = sim_4d.flatten()
     metrics = calculate_metrics(y_real, y_model, A_final, u0, t_eval)
 
-    # --- GENEROWANIE JSONÓW DLA REACT ---
 
-    print("[MODEL] Generating JSON data for React...")
+    print("[MODEL] Generating JSON data...")
 
     # A. Historia Optymalizacji
     with open(os.path.join(output_plots, 'optimization_history.json'), 'w') as f:
         json.dump(opt_history, f, indent=2)
 
-    # B. Dane Lyapunova (Reakcja/Stabilność w czasie)
     lyap_trend = np.polyval(metrics['Lyap_Coeffs'], t_eval)
     lyapunov_data = {
         'time': t_eval.tolist(),
@@ -281,7 +262,6 @@ def run_model(input_npy_folder, output_base_folder, exp_name):
     with open(os.path.join(output_plots, 'lyapunov_data.json'), 'w') as f:
         json.dump(lyapunov_data, f, indent=2)
 
-    # C. Globalna Intensywność (Total Growth) - bardzo przydatne do wizualizacji
     real_sum = np.sum(data_4d, axis=(1, 2, 3))
     sim_sum = np.sum(sim_4d, axis=(1, 2, 3))
     growth_data = {
@@ -292,7 +272,6 @@ def run_model(input_npy_folder, output_base_folder, exp_name):
     with open(os.path.join(output_plots, 'global_growth.json'), 'w') as f:
         json.dump(growth_data, f, indent=2)
 
-    # D. Metryki skalarne (Metrics)
     metrics_json = {
         'RMSE': float(metrics['RMSE']),
         'R2': float(metrics['R2']),
@@ -307,11 +286,6 @@ def run_model(input_npy_folder, output_base_folder, exp_name):
     with open(os.path.join(output_plots, 'metrics.json'), 'w') as f:
         json.dump(metrics_json, f, indent=2)
 
-    # --- ZAPIS WYKRESÓW STATYCZNYCH (PNG) ---
-    # (Zachowujemy dla kompatybilności wstecznej lub szybkiego podglądu)
-
-    # Wykres Lyapunova (PNG)
-
     plt.figure(figsize=(8, 6))
     plt.plot(t_eval, np.log(metrics['Dists'] + np.finfo(float).eps), 'b-o', label='Log(Distance)')
     plt.plot(t_eval, lyap_trend, 'r--', label=f'Trend (Lambda={metrics["Lyapunov"]:.4f})')
@@ -323,13 +297,10 @@ def run_model(input_npy_folder, output_base_folder, exp_name):
     plt.savefig(os.path.join(output_plots, 'Lyapunov.png'))
     plt.close()
 
-    # Wykres Ortho Slices (PNG) - bez zmian
     mid_z, mid_y, mid_x = Nz // 2, Ny // 2, Nx // 2
     vol_real = data_4d[-1]
     vol_sim = sim_4d[-1]
     fig, axes = plt.subplots(3, 3, figsize=(12, 12))
-    # ... (kod rysowania wykresów ortho slices jak wcześniej) ...
-    # Dla skrótu wklejam tylko logikę zapisu, bo reszta jest długa:
     im1 = axes[0, 0].imshow(vol_real[mid_z, :, :], cmap='hot');
     axes[0, 0].set_title('XY Real')
     im2 = axes[0, 1].imshow(vol_sim[mid_z, :, :], cmap='hot');

@@ -14,20 +14,23 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
-# Upewnij się, że ten import działa u Ciebie
 from formermatlabfunc import process_pipeline
 from werkzeug.utils import secure_filename
 
 app = Flask("Organoid Review")
 CORS(app)
 
-# Uruchamiamy SocketIO
 socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet')
 
-user = os.environ.get('DB_USER', 'root')
-password = os.environ.get('DB_PASSWORD', 'organoid123')
-host = os.environ.get('DB_HOST', 'db')
-dbname = os.environ.get('DB_NAME', 'organoid-db')
+user = os.environ.get('DB_USER')
+password = os.environ.get('DB_PASSWORD')
+host = os.environ.get('DB_HOST')
+dbname = os.environ.get('DB_NAME')
+
+if not all([user, password, host, dbname]):
+    print("ERROR: Brak zmiennych środowiskowych do bazy danych")
+    print("Upewnij się, że plik .env jest poprawny.")
+    sys.exit(1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{user}:{password}@{host}/{dbname}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -54,33 +57,12 @@ SERVER_STATE = {
     "current_task": None
 }
 
-# 1. To jest punkt styku z Windows (zdefiniowany w docker-compose jako volume)
-# Zmień mapowanie w docker-compose na: - ${DATA_PATH_HOST}:/app/data
-# DATA_MOUNT_POINT = '/app/data'
-
-# # 2. Teraz wszystkie inne foldery budujemy RELATYWNIE do tego punktu
-# # Dzięki temu pliki wylądują na Twoim dysku F:
-
-# # Jeśli Twój folder na dysku F zawiera bezpośrednio pliki .tif:
-# TIFS_FOLDER = os.path.join({DATA_PATH_HOST}, 'tiffs')
-
-# # Tutaj trafią wyniki (utworzą się fizyczne foldery na dysku F:)
-# GLBS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'glbs')
-# OBJS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'objs')
-# PROCESSED_FOLDER = os.path.join(DATA_MOUNT_POINT, 'processed_data') # Dla numpy
-# PLOT_FOLDER = os.path.join(DATA_MOUNT_POINT, 'matlab')
-
-# # Foldery kodu (skrypty) zostają w app.root_path, bo one są częścią aplikacji, a nie danych
-# MATLAB_FOLDER = os.path.join(app.root_path, 'matlab')
-# # BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbCoat.py')
-# # BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbNuclei.py')
 BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbPack.py')
 BLENDER_NUCLEI_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbPack.py')
 BLENDER_EXEC = "/opt/blender/blender"
 
 app.config['UPLOAD_FOLDER'] = TIFS_FOLDER
 
-# Tworzenie folderów (żeby Python nie krzyczał, że ich nie ma)
 os.makedirs(GLBS_FOLDER, exist_ok=True)
 os.makedirs(OBJS_FOLDER, exist_ok=True)
 # os.makedirs(PROCESSED_FOLDER, exist_ok=True)
@@ -118,14 +100,12 @@ def broadcast_log(message, level="INFO", organoid_id=None):
     gdy sys.stdout jest podmieniony przez SocketLogger.
     """
     try:
-        # Piszemy bezpośrednio do prawdziwego strumienia wyjścia
         log_line = f"[{level}] (ID: {organoid_id}) {message}\n"
         sys.__stdout__.write(log_line) 
         sys.__stdout__.flush()
     except Exception:
         pass
 
-    # 1. WebSocket
     try:
         socketio.emit('server_log', {
             'timestamp': datetime.datetime.utcnow().isoformat(),
@@ -138,16 +118,13 @@ def broadcast_log(message, level="INFO", organoid_id=None):
     
     socketio.emit('server_state', SERVER_STATE)
 
-    # 2. Baza Danych
     try:
-        # with app.app_context() jest kluczowe wewnątrz wątków
         with app.app_context():
             new_log = ProcessLog(level=level, message=str(message), organoid_id=organoid_id)
             db.session.add(new_log)
             db.session.commit()
     except Exception as e:
         sys.__stdout__.write(f"Błąd zapisu logu do DB: {e}\n")
-        # Rollback jest ważny, żeby nie zblokować sesji DB
         try:
             with app.app_context():
                 db.session.rollback()
@@ -191,16 +168,13 @@ def run_blender_conversion(input_folder_coat, output_file_coat, input_folder_nuc
     ]
     
     try:
-        # Uruchamiamy Coat
         run_blender_subprocess(cmd_coat, organoid_id, "BLENDER_COAT")
-        
-        # Uruchamiamy Nuclei
+
         broadcast_log(f"Start Blendera: Nuclei -> {os.path.basename(output_file_nuclei)}", "INFO", organoid_id)
         run_blender_subprocess(cmd_nuclei, organoid_id, "BLENDER_NUCLEI")
         
         broadcast_log("Blender zakończył pracę sukcesem.", "SUCCESS", organoid_id)
     except subprocess.CalledProcessError as e:
-        # Logowanie błędu jest już obsłużone w run_blender_subprocess
         pass
 
 class SocketLogger:
@@ -211,13 +185,10 @@ class SocketLogger:
         self.organoid_id = organoid_id
 
     def write(self, message):
-        # Piszemy na prawdziwą konsolę (zeby nie stracić logów w dockerze)
         sys.__stdout__.write(message) 
         
         msg_clean = message.strip()
         if msg_clean:
-            # Wysyłamy do WS i Bazy
-            # Używamy flagi "PIPELINE" dla logów z funkcji przetwarzania
             broadcast_log(msg_clean, "PIPELINE", self.organoid_id)
 
     def flush(self):
@@ -431,13 +402,13 @@ def process_file():
     return trigger_processing(organoid_id)
 
 
-@app.route('/testprocess/', methods=['POST'])
-def testprocess():
-    base_folder = app.config['UPLOAD_FOLDER']
-    input_file = os.path.join(base_folder, "Tile_1_processed_binned-2b.tif")
-    process_pipeline(input_file, base_folder)
-
-    return "Process started", 200
+# @app.route('/testprocess/', methods=['POST'])
+# def testprocess():
+#     base_folder = app.config['UPLOAD_FOLDER']
+#     input_file = os.path.join(base_folder, "Tile_1_processed_binned-2b.tif")
+#     process_pipeline(input_file, base_folder)
+#
+#     return "Process started", 200
 
 @socketio.on('connect')
 def handle_connect():
