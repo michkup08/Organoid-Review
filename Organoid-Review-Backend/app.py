@@ -32,10 +32,11 @@ dbname = os.environ.get('DB_NAME', 'organoid-db')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{user}:{password}@{host}/{dbname}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-TIFS_FOLDER = os.path.join(app.root_path, 'tiffs')
-GLBS_FOLDER = os.path.join(app.root_path, 'glbs')
-OBJS_FOLDER = os.path.join(app.root_path, 'objs')
-MATLAB_FOLDER = os.path.join(app.root_path, 'matlab')
+DATA_MOUNT_POINT = '/app/data'
+TIFS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'tiffs')
+GLBS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'glbs')
+OBJS_FOLDER = os.path.join(DATA_MOUNT_POINT, 'objs')
+MATLAB_FOLDER = os.path.join(DATA_MOUNT_POINT, 'matlab')
 app.config['UPLOAD_FOLDER'] = TIFS_FOLDER
 
 # BLENDER_COAT_SCRIPT_PATH = os.path.join(app.root_path, 'blender_scripts/ObjsToGlbCoat.py')

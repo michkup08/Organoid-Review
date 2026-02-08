@@ -41,6 +41,7 @@ services:
       - CHOKIDAR_USEPOLLING=true  # Ważne dla Windows/WSL, aby wykrywać zmiany w plikach
       # Tu możesz dodać zmienne środowiskowe, np. adres backendu:
       - VITE_API_URL=http://localhost:5000/
+      - VITE_GEMINI_KEY=${VITE_GEMINI_KEY}
     depends_on:
       - backend                   # Frontend uruchomi się po backendzie
     stdin_open: true              # Potrzebne, aby proces Reacta nie zamykał się od razu
