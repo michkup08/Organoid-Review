@@ -61,7 +61,7 @@ const MainMenu = () => {
 
   return (
     <div style={{ 
-      width: '100vw', 
+      width: '100%', 
       minHeight: '100vh', 
       background: '#e8e8e8',
       padding: '20px',
@@ -174,7 +174,7 @@ const MainMenu = () => {
           </div>
       </div>
 
-      <div style={{ 
+      {/* <div style={{ 
         padding: '25px', 
         background: '#eee', 
         boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
@@ -184,7 +184,7 @@ const MainMenu = () => {
         <label style={{ fontSize: '18px', fontWeight: 'bold', color: '#333' }}>
           Zamodelowane modele dyfuzji ciała organoidu:
         </label>
-      </div>
+      </div> */}
       
       <div style={{ 
         padding: '25px', 

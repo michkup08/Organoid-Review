@@ -1,10 +1,11 @@
 import { ArrowLeft} from "@mui/icons-material";
 import ModelInterface from "../components/ModelInterface";
 import { useNavigate, useParams } from "react-router-dom";
-import { useGlobalGrowth, useLyapunov, useLyapunovData, useMetrics, useOptimizationHistory, useOrganoid, useOrthoSlices, useProcessOrganoid } from "../services/Organoid";
+import { useGlobalGrowth, useLyapunovData, useMetrics, useOptimizationHistory, useOrganoid, useOrthoSlices, useProcessOrganoid } from "../services/Organoid";
 import { useSocket } from "../context/SocketContext";
 import { Line } from 'react-chartjs-2';
 import { useEffect, useRef } from "react";
+import Markdown from 'react-markdown'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,6 +17,7 @@ import {
   Legend,
 } from 'chart.js';
 import { useGeminiResponse } from "../services/Gemini";
+import './SingleSetInterface.css';
 
 ChartJS.register(
   CategoryScale,
@@ -32,13 +34,16 @@ const SingleSetInterface = () => {
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const { id } = useParams();
   const { data: organoidData, isLoading, error } = useOrganoid(+(id ?? 0));
+
+  const canFetchDetails = !!(organoidData && organoidData?.isInitialized && organoidData?.isProcessedGlb);
+
   const { serverState, isConnected } = useSocket();
   const { mutate: processOrganoid } = useProcessOrganoid();
-  const { data: metricsData } = useMetrics(+(id ?? 0));
-  const { data: orthoSlicesData } = useOrthoSlices(+(id ?? 0));
-  const { data: lyapunovDataForChart } = useLyapunovData(+(id ?? 0));
-  const { data: optymazationHistoryData } = useOptimizationHistory(+(id ?? 0));
-  const { data: globalGrowthData } = useGlobalGrowth(+(id ?? 0));
+  const { data: metricsData } = useMetrics(+(id ?? 0), { enabled: canFetchDetails });
+  const { data: orthoSlicesData } = useOrthoSlices(+(id ?? 0), { enabled: canFetchDetails });
+  const { data: lyapunovDataForChart } = useLyapunovData(+(id ?? 0), { enabled: canFetchDetails });
+  const { data: optymazationHistoryData } = useOptimizationHistory(+(id ?? 0), { enabled: canFetchDetails });
+  const { data: globalGrowthData } = useGlobalGrowth(+(id ?? 0), { enabled: canFetchDetails });
 
   const { mutate: geminiQuestion, data: geminiResponse, isPending: geminiLoading, error: geminiError } = useGeminiResponse(
     `Przeanalizuj wyniki modelu dyfuzji dla organoidu o id ${id}. 
@@ -68,7 +73,7 @@ const SingleSetInterface = () => {
 
   return (
     <div 
-      style={{ width: 'calc(100vw - 15px)', minHeight: '100vh', background: '#e8e8e8', display: 'flex', flexDirection: 'column' }}
+      style={{ width: '100%', minHeight: '100vh', background: '#e8e8e8', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}
       ref={mainContainerRef}>
       <div style={{ 
         padding: '20px', 
@@ -134,7 +139,7 @@ const SingleSetInterface = () => {
         )}
         
       </div>
-      {<div
+      {organoidData?.isInitialized && <div
         style={{ 
           padding: '20px', 
           background: '#eee', 
@@ -151,15 +156,22 @@ const SingleSetInterface = () => {
         >
           Zamodelowany model dyfuzji ciała organoidu (przekrój i rozkład w 3D):
         </label>
-        <div style={{
-          display: 'flex', 
-          flexDirection: 'column',
-          gap: '20px',
-          marginTop: '10px'
+        <div 
+          
+          style={{
+            display: 'flex', 
+            flexDirection: 'column',
+            gap: '20px',
+            marginTop: '10px'
           }}>
-          <div style={{
-            flexGrow: 1,
-            maxWidth: '100%'
+          <div 
+            className="setInfo"
+            style={{
+              flexGrow: 1,
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
           }}>
             <img 
                 src={orthoSlicesData}
@@ -167,19 +179,20 @@ const SingleSetInterface = () => {
                 style={{ 
                   objectFit: 'contain', 
                   borderRadius: '20px',
-                  width: '100%',
+                  width: '80%',
                   height: 'auto',
                 }} 
               />
           </div>
-          <div style={{ 
-            flexGrow: 1,
-            maxWidth: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column',
-            
+          <div 
+            className="setInfo"
+            style={{ 
+              flexGrow: 1,
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
           }}>
             {metricsData && (
               <table style={{ backgroundColor: '#fff', padding: 10, borderRadius: 20, borderCollapse: 'collapse' }}>
@@ -195,14 +208,15 @@ const SingleSetInterface = () => {
             )}
           </div>
       </div>
-      <div style={{ 
-        flexGrow: 1,
-        maxWidth: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        
+      <div 
+        className="setInfo"
+        style={{ 
+          flexGrow: 1,
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
       }}>
         {lyapunovDataForChart && <Line
           options={{
@@ -234,14 +248,15 @@ const SingleSetInterface = () => {
           }}
         />}
       </div>
-      <div style={{ 
-        flexGrow: 1,
-        maxWidth: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        
+      <div 
+        className="setInfo"
+        style={{ 
+          flexGrow: 1,
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
       }}>
         {optymazationHistoryData && <Line
           options={{
@@ -273,14 +288,15 @@ const SingleSetInterface = () => {
           }}
         />}
       </div>
-      <div style={{ 
-        flexGrow: 1,
-        maxWidth: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        
+      <div 
+        className="setInfo"
+        style={{ 
+          flexGrow: 1,
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
       }}>
         {globalGrowthData && <Line
           options={{
@@ -291,7 +307,7 @@ const SingleSetInterface = () => {
               },
               title: {
                 display: true,
-                text: 'Proces optymalizacji - historia zmian parametrów D i Rho',
+                text: 'Model liniowy Rho',
               },
             },
           }}
@@ -299,12 +315,12 @@ const SingleSetInterface = () => {
             labels: globalGrowthData?.time,
             datasets: [
               {
-                label: 'D',
+                label: 'Dane rzeczywiste',
                 data: globalGrowthData?.real_total_intensity,
                 borderColor: 'blue',
               },
               {
-                label: 'Rho',
+                label: 'Wygenerowany model rho',
                 data: globalGrowthData?.model_total_intensity,
                 borderColor: 'red',
               }
@@ -312,7 +328,12 @@ const SingleSetInterface = () => {
           }}
         />}
       </div>
-      <div>
+      <div
+        className="setInfo"
+        style={{
+          marginBottom: '100px',
+        }}
+      >
           <button 
             onClick={() => {geminiQuestion()}}
             className="sendButton"
@@ -322,7 +343,7 @@ const SingleSetInterface = () => {
           {geminiResponse && (
             <div style={{ marginTop: '20px', background: '#f0f0f0', padding: '10px', borderRadius: '10px' }}>
               <strong>Analiza wyników modelu:</strong>
-              <p>{geminiResponse}</p>
+              <Markdown>{geminiResponse}</Markdown>
             </div>
           )}
           {geminiError && (
