@@ -21,7 +21,7 @@ export const useOrganoidModel = ({id, type} : {id: number, type: 'inner' | 'oute
 
     return {
         data: url,       // Tutaj zwracamy string (URL), a nie Blob/JSON
-        isLoading: false,// "Pobieranie" w tym hooku jest natychmiastowe (bo tylko tworzymy string)
+        isLoading: false,
                         // Prawdziwe ładowanie obsłuży <Suspense> w Canvasie
         error: null
     };

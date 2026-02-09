@@ -34,7 +34,7 @@ const LogTerminal: React.FC<LogTerminalProps> = ({ currentOrganoidId }) => {
             borderRadius: '8px', 
             fontFamily: 'Consolas, "Courier New", monospace',
             marginTop: '20px',
-            height: '400px',
+            maxHeight: '400px',
             display: 'flex',
             flexDirection: 'column'
         }}>

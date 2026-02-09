@@ -184,44 +184,50 @@ export const useProcessOrganoid = () => {
   });
 };
 
-export const useMetrics = (organoidId: number) => {
+export const useMetrics = (organoidId: number, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['metrics', organoidId], 
     queryFn: () => fetchMetrics(organoidId),
+    enabled: options?.enabled ?? true,
   });
 }
 
-export const useOrthoSlices = (organoidId: number) => {
+export const useOrthoSlices = (organoidId: number, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['orthoSlices', organoidId], 
     queryFn: () => fetchOrthoSlices(organoidId),
+    enabled: options?.enabled ?? true,
   });
 }
 
-export const useLyapunov = (organoidId: number) => {
+export const useLyapunov = (organoidId: number, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['lyapunovImage', organoidId], 
     queryFn: () => fetchLyapunovImage(organoidId),
+    enabled: options?.enabled ?? true,
   });
 }
 
-export const useLyapunovData = (organoidId: number) => {
+export const useLyapunovData = (organoidId: number, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['lyapunovData', organoidId], 
     queryFn: () => fetchLyapunovData(organoidId),
+    enabled: options?.enabled ?? true,
   });
 }
 
-export const useOptimizationHistory = (organoidId: number) => {
+export const useOptimizationHistory = (organoidId: number, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['optimizationHistory', organoidId], 
     queryFn: () => fetchOptimizationHistory(organoidId),
+    enabled: options?.enabled ?? true,
   });
 }
 
-export const useGlobalGrowth = (organoidId: number) => {
+export const useGlobalGrowth = (organoidId: number, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['globalGrowth', organoidId], 
     queryFn: () => fetchGlobalGrowth(organoidId),
+    enabled: options?.enabled ?? true,
   });
 }
